@@ -1,0 +1,18 @@
+[package]
+name = "i"
+version = "0.1.0"
+authors = ["Linus Karlsson <linus@zozs.se>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+actix-multipart = "0.2.0"
+actix-rt = "1.0"
+actix-web = "2.0"
+env_logger = "0.7.1"
+futures = "0.3.1"
+log = "0.4.8"
+rand = "0.7.3"
+sanitize-filename = "0.2"
+serde = "1.0.114"
