@@ -1,16 +1,16 @@
 use actix_multipart::Multipart;
-use actix_web::{middleware, web, App, Error, HttpResponse, HttpServer, Responder};
 use actix_web::dev::ServiceRequest;
-use actix_web_httpauth::extractors::AuthenticationError;
+use actix_web::{middleware, web, App, Error, HttpResponse, HttpServer, Responder};
 use actix_web_httpauth::extractors::basic::{BasicAuth, Config};
+use actix_web_httpauth::extractors::AuthenticationError;
 use actix_web_httpauth::middleware::HttpAuthentication;
 use futures::{StreamExt, TryStreamExt};
-use rand::{thread_rng, Rng};
 use rand::distributions::Alphanumeric;
+use rand::{thread_rng, Rng};
 use serde::{Deserialize, Serialize};
+use std::ffi::OsStr;
 use std::io::Write;
 use std::path::Path;
-use std::ffi::OsStr;
 
 pub struct FileUpload {
     original_filename: String,
@@ -28,7 +28,7 @@ pub struct Options {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UploadResponse {
-    url: String
+    url: String,
 }
 
 async fn index() -> impl Responder {
@@ -36,10 +36,7 @@ async fn index() -> impl Responder {
 }
 
 fn generate_random_filename(extension: Option<&str>) -> String {
-    let random_string = thread_rng()
-        .sample_iter(&Alphanumeric)
-        .take(8)
-        .collect();
+    let random_string = thread_rng().sample_iter(&Alphanumeric).take(8).collect();
     match extension {
         Some(ext) => format!("{}.{}", random_string, ext),
         None => random_string,
@@ -47,7 +44,11 @@ fn generate_random_filename(extension: Option<&str>) -> String {
 }
 
 fn filename_path(filename: &str) -> Result<String, Error> {
-    Ok(format!("{}/{}", get_base_dir()?, sanitize_filename::sanitize(&filename)))
+    Ok(format!(
+        "{}/{}",
+        get_base_dir()?,
+        sanitize_filename::sanitize(&filename)
+    ))
 }
 
 fn get_base_dir() -> std::io::Result<&'static str> {
@@ -60,9 +61,7 @@ fn get_base_dir() -> std::io::Result<&'static str> {
 }
 
 fn get_extension_from_filename(filename: &str) -> Option<&str> {
-    Path::new(filename)
-        .extension()
-        .and_then(OsStr::to_str)
+    Path::new(filename).extension().and_then(OsStr::to_str)
 }
 
 async fn parse_field_options(mut field: actix_multipart::Field) -> Result<Options, Error> {
@@ -116,7 +115,6 @@ async fn handle_upload(mut payload: Multipart) -> Result<HttpResponse, Error> {
                         let data = chunk.unwrap();
                         // filesystem operations are blocking, we have to use threadpool
                         f = web::block(move || f.write_all(&data).map(|_| f)).await?;
-                    
                     }
                     file_field = Some(FileUpload {
                         original_filename: original_filename.to_string(),
@@ -146,17 +144,12 @@ async fn handle_upload(mut payload: Multipart) -> Result<HttpResponse, Error> {
         // Derive url of newly created file.
         let url = public_path(final_filename).map_err(|_| HttpResponse::InternalServerError())?;
 
-        Ok(
-            HttpResponse::SeeOther()
-                .header("Location", url.as_str())
-                .json(UploadResponse {
-                    url
-                })
-        )
+        Ok(HttpResponse::SeeOther()
+            .header("Location", url.as_str())
+            .json(UploadResponse { url }))
     } else {
         Ok(HttpResponse::BadRequest().into())
     }
-
 }
 
 fn auth_activated() -> bool {
@@ -172,7 +165,8 @@ async fn auth_validator(
         return match (credentials.user_id(), credentials.password()) {
             (auser, Some(apass)) if auser == euser && apass == epass => Ok(req), // success!
             _ => {
-                let config = req.app_data::<Config>()
+                let config = req
+                    .app_data::<Config>()
                     .map(|data| data.get_ref().clone())
                     .unwrap_or_else(Default::default);
                 Err(AuthenticationError::from(config).into())
@@ -198,13 +192,14 @@ async fn main() -> std::io::Result<()> {
     HttpServer::new(move || {
         let auth = HttpAuthentication::basic(auth_validator);
 
-        App::new().wrap(middleware::Logger::default())
+        App::new()
+            .wrap(middleware::Logger::default())
             .data(Config::default().realm("i: file upload"))
             .service(
                 web::resource("/")
                     .wrap(middleware::Condition::new(auth_activated(), auth))
                     .route(web::get().to(index))
-                    .route(web::post().to(handle_upload))
+                    .route(web::post().to(handle_upload)),
             )
             .service(actix_files::Files::new("/", base_dir))
     })
