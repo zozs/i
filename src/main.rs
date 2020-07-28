@@ -1,5 +1,9 @@
 use actix_multipart::Multipart;
 use actix_web::{middleware, web, App, Error, HttpResponse, HttpServer, Responder};
+use actix_web::dev::ServiceRequest;
+use actix_web_httpauth::extractors::AuthenticationError;
+use actix_web_httpauth::extractors::basic::{BasicAuth, Config};
+use actix_web_httpauth::middleware::HttpAuthentication;
 use futures::{StreamExt, TryStreamExt};
 use rand::{thread_rng, Rng};
 use rand::distributions::Alphanumeric;
@@ -155,6 +159,29 @@ async fn handle_upload(mut payload: Multipart) -> Result<HttpResponse, Error> {
 
 }
 
+fn auth_activated() -> bool {
+    option_env!("I_AUTH_USER").is_some() && option_env!("I_AUTH_PASS").is_some()
+}
+
+async fn auth_validator(
+    req: ServiceRequest,
+    credentials: BasicAuth,
+) -> Result<ServiceRequest, Error> {
+    if let (Some(euser), Some(epass)) = (option_env!("I_AUTH_USER"), option_env!("I_AUTH_PASS")) {
+        // Since both user and pass are given, we now require authentication. Check that they match.
+        return match (credentials.user_id(), credentials.password()) {
+            (auser, Some(apass)) if auser == euser && apass == epass => Ok(req), // success!
+            _ => {
+                let config = req.app_data::<Config>()
+                    .map(|data| data.get_ref().clone())
+                    .unwrap_or_else(Default::default);
+                Err(AuthenticationError::from(config).into())
+            }
+        };
+    }
+    Ok(req)
+}
+
 #[actix_rt::main]
 async fn main() -> std::io::Result<()> {
     env_logger::init();
@@ -169,13 +196,17 @@ async fn main() -> std::io::Result<()> {
     log::info!("serving and storing files in: {}", base_dir);
 
     HttpServer::new(move || {
+        let auth = HttpAuthentication::basic(auth_validator);
+
         App::new().wrap(middleware::Logger::default())
-        .service(
-            web::resource("/")
-                .route(web::get().to(index))
-                .route(web::post().to(handle_upload)),
-        )
-        .service(actix_files::Files::new("/", base_dir))
+            .data(Config::default().realm("i: file upload"))
+            .service(
+                web::resource("/")
+                    .wrap(middleware::Condition::new(auth_activated(), auth))
+                    .route(web::get().to(index))
+                    .route(web::post().to(handle_upload))
+            )
+            .service(actix_files::Files::new("/", base_dir))
     })
     .bind(bind_string)?
     .run()
