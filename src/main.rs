@@ -11,6 +11,35 @@ use serde::{Deserialize, Serialize};
 use std::ffi::OsStr;
 use std::io::Write;
 use std::path::Path;
+use structopt::StructOpt;
+
+#[derive(StructOpt, Clone, Debug)]
+#[structopt(name = "i", about = "i is a simple file uploader web service.")]
+struct Opt {
+    /// Enable verbose logging
+    #[structopt(short, long)]
+    verbose: bool,
+
+    /// Port to listen on.
+    #[structopt(short = "P", long, default_value = "8088", env)]
+    port: u16,
+
+    /// The file system directory where uploaded files will be stored to, and served from.
+    #[structopt(short, long, env, default_value = "./tmp")]
+    base_dir: String,
+
+    /// The complete server URL base which should be used when generating links.
+    #[structopt(short, long, env, default_value = "http://localhost:8088")]
+    server_url: String,
+
+    /// Username for basic auth, if you want to require authentication to upload files
+    #[structopt(short = "u", long, env)]
+    auth_user: Option<String>,
+
+    /// Password for basic auth, if you want to require authentication to upload files
+    #[structopt(short = "p", long, env)]
+    auth_pass: Option<String>,
+}
 
 pub struct FileUpload {
     original_filename: String,
@@ -43,21 +72,19 @@ fn generate_random_filename(extension: Option<&str>) -> String {
     }
 }
 
-fn filename_path(filename: &str) -> Result<String, Error> {
+fn filename_path(filename: &str, opt: &Opt) -> Result<String, Error> {
     Ok(format!(
         "{}/{}",
-        get_base_dir()?,
+        get_base_dir(opt)?,
         sanitize_filename::sanitize(&filename)
     ))
 }
 
-fn get_base_dir() -> std::io::Result<&'static str> {
-    let base_dir = option_env!("I_BASE_DIR").unwrap_or("./tmp");
-
+fn get_base_dir<'a>(opt: &'a Opt) -> std::io::Result<&'a str> {
     // Create directory where files should be uploaded.
-    std::fs::create_dir_all(base_dir)?;
+    std::fs::create_dir_all(&opt.base_dir)?;
 
-    Ok(base_dir)
+    Ok(&opt.base_dir)
 }
 
 fn get_extension_from_filename(filename: &str) -> Option<&str> {
@@ -78,18 +105,12 @@ async fn parse_field_options(mut field: actix_multipart::Field) -> Result<Option
     Ok(serde_json::from_slice(&v)?)
 }
 
-fn public_path(filename: &str) -> Result<String, url::ParseError> {
-    let port = option_env!("I_PORT").unwrap_or("8088");
-    let public_base_string = match option_env!("I_PUBLIC_BASE") {
-        Some(s) => s.to_string(),
-        None => format!("http://localhost:{}", port),
-    };
-
-    let public_base = url::Url::parse(&public_base_string)?;
+fn public_path(filename: &str, opt: &Opt) -> Result<String, url::ParseError> {
+    let public_base = url::Url::parse(&opt.server_url)?;
     Ok(public_base.join(filename)?.into_string())
 }
 
-async fn handle_upload(mut payload: Multipart) -> Result<HttpResponse, Error> {
+async fn handle_upload(mut payload: Multipart, opt: web::Data<Opt>) -> Result<HttpResponse, Error> {
     let mut file_field: Option<FileUpload> = None;
     let mut options_field: Option<Options> = None;
 
@@ -104,7 +125,7 @@ async fn handle_upload(mut payload: Multipart) -> Result<HttpResponse, Error> {
                     let extension = get_extension_from_filename(original_filename);
                     let random_filename = generate_random_filename(extension);
 
-                    let filepath = filename_path(&random_filename)?;
+                    let filepath = filename_path(&random_filename, &opt)?;
                     let random_filename_path = filepath.clone();
                     // File::create is blocking operation, use threadpool
                     let mut f = web::block(|| std::fs::File::create(filepath))
@@ -134,7 +155,7 @@ async fn handle_upload(mut payload: Multipart) -> Result<HttpResponse, Error> {
     if let (Some(file), Some(options)) = (file_field, options_field) {
         let final_filename: &str = if options.use_original_filename {
             // Rename from temporary random filename to original. Will overwrite if filename already exists.
-            let original_filename_path = filename_path(&file.original_filename)?;
+            let original_filename_path = filename_path(&file.original_filename, &opt)?;
             std::fs::rename(&file.random_filename_path, &original_filename_path)?;
             &file.original_filename
         } else {
@@ -142,7 +163,8 @@ async fn handle_upload(mut payload: Multipart) -> Result<HttpResponse, Error> {
         };
 
         // Derive url of newly created file.
-        let url = public_path(final_filename).map_err(|_| HttpResponse::InternalServerError())?;
+        let url =
+            public_path(final_filename, &opt).map_err(|_| HttpResponse::InternalServerError())?;
 
         Ok(HttpResponse::SeeOther()
             .header("Location", url.as_str())
@@ -152,18 +174,23 @@ async fn handle_upload(mut payload: Multipart) -> Result<HttpResponse, Error> {
     }
 }
 
-fn auth_activated() -> bool {
-    option_env!("I_AUTH_USER").is_some() && option_env!("I_AUTH_PASS").is_some()
+fn auth_activated(opt: &Opt) -> bool {
+    opt.auth_user.is_some() && opt.auth_pass.is_some()
 }
 
 async fn auth_validator(
     req: ServiceRequest,
     credentials: BasicAuth,
 ) -> Result<ServiceRequest, Error> {
-    if let (Some(euser), Some(epass)) = (option_env!("I_AUTH_USER"), option_env!("I_AUTH_PASS")) {
+    let opt = req
+        .app_data::<Opt>()
+        .map(|data| data.get_ref().clone())
+        .unwrap();
+
+    if let (Some(euser), Some(epass)) = (opt.auth_user, opt.auth_pass) {
         // Since both user and pass are given, we now require authentication. Check that they match.
         return match (credentials.user_id(), credentials.password()) {
-            (auser, Some(apass)) if auser == euser && apass == epass => Ok(req), // success!
+            (auser, Some(apass)) if auser == &euser && apass == &epass => Ok(req), // success!
             _ => {
                 let config = req
                     .app_data::<Config>()
@@ -178,13 +205,14 @@ async fn auth_validator(
 
 #[actix_rt::main]
 async fn main() -> std::io::Result<()> {
+    let opt = Opt::from_args();
+
     env_logger::init();
 
     let host = "0.0.0.0";
-    let port = option_env!("I_PORT").unwrap_or("8088");
-    let bind_string = format!("{}:{}", host, port);
+    let bind_string = format!("{}:{}", host, opt.port);
 
-    let base_dir = get_base_dir()?;
+    let base_dir = get_base_dir(&opt)?.to_string();
 
     log::info!("listening on {}", bind_string);
     log::info!("serving and storing files in: {}", base_dir);
@@ -195,13 +223,14 @@ async fn main() -> std::io::Result<()> {
         App::new()
             .wrap(middleware::Logger::default())
             .data(Config::default().realm("i: file upload"))
+            .data(opt.clone())
             .service(
                 web::resource("/")
-                    .wrap(middleware::Condition::new(auth_activated(), auth))
+                    .wrap(middleware::Condition::new(auth_activated(&opt), auth))
                     .route(web::get().to(index))
                     .route(web::post().to(handle_upload)),
             )
-            .service(actix_files::Files::new("/", base_dir))
+            .service(actix_files::Files::new("/", &base_dir))
     })
     .bind(bind_string)?
     .run()

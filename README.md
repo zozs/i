@@ -35,8 +35,8 @@ $ curl -F file=@testfile.txt -F options='{"useOriginalFilename":true}' http://lo
 
 Set the following environmental variables to configure `i`.
 
-* `I_AUTH_USER`: Set to the username for basic auth if you want to require authentication to upload files. Empty means no authentication.
-* `I_AUTH_PASS`: Set to the password for basic auth if you want to require authentication to upload files. Empty means no authentication.
-* `I_BASE_DIR`: Set to the file system directory where uploaded files will be stored to and served from. Default `./tmp`.
-* `I_PUBLIC_BASE`: Set to the complete server URL base which should be used when generating links. Default: `http://localhost:{I_PORT}`.
-* `I_PORT`: Which port `i` should listen to. Default `8088`.
+* `AUTH_USER`: Set to the username for basic auth if you want to require authentication to upload files. Empty means no authentication.
+* `AUTH_PASS`: Set to the password for basic auth if you want to require authentication to upload files. Empty means no authentication.
+* `BASE_DIR`: Set to the file system directory where uploaded files will be stored to and served from. Default `./tmp`.
+* `SERVER_URL`: Set to the complete server URL base which should be used when generating links. Default: `http://localhost:8088`.
+* `PORT`: Which port `i` should listen to. Default `8088`.
