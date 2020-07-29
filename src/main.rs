@@ -130,7 +130,9 @@ async fn handle_upload(mut payload: Multipart, opt: web::Data<Opt>) -> Result<Ht
                     // File::create is blocking operation, use threadpool
                     let mut f = web::block(|| std::fs::File::create(filepath))
                         .await
-                        .unwrap();
+                        .map_err(|_| {
+                            actix_web::error::ErrorInternalServerError("Could not upload file")
+                        })?;
                     // Field in turn is stream of *Bytes* object
                     while let Some(chunk) = field.next().await {
                         let data = chunk.unwrap();

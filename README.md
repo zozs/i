@@ -34,6 +34,8 @@ $ curl -F file=@testfile.txt -F options='{"useOriginalFilename":true}' http://lo
 ## Configuration
 
 Set the following environmental variables to configure `i`.
+You can also set all settings by using arguments instead, such as `i -P 1234` to change port.
+See `i --help` for details.
 
 * `AUTH_USER`: Set to the username for basic auth if you want to require authentication to upload files. Empty means no authentication.
 * `AUTH_PASS`: Set to the password for basic auth if you want to require authentication to upload files. Empty means no authentication.
