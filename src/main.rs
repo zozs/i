@@ -64,6 +64,10 @@ async fn index() -> impl Responder {
     HttpResponse::Ok().body("i API ready!")
 }
 
+async fn recent() -> impl Responder {
+    HttpResponse::Ok().body("you have reached the /recent endpoint.")
+}
+
 fn generate_random_filename(extension: Option<&str>) -> String {
     let random_string = thread_rng().sample_iter(&Alphanumeric).take(8).collect();
     match extension {
@@ -221,6 +225,7 @@ async fn main() -> std::io::Result<()> {
 
     HttpServer::new(move || {
         let auth = HttpAuthentication::basic(auth_validator);
+        let auth_recent = auth.clone();
 
         App::new()
             .wrap(middleware::Logger::default())
@@ -231,6 +236,14 @@ async fn main() -> std::io::Result<()> {
                     .wrap(middleware::Condition::new(auth_activated(&opt), auth))
                     .route(web::get().to(index))
                     .route(web::post().to(handle_upload)),
+            )
+            .service(
+                web::resource("/recent")
+                    .wrap(middleware::Condition::new(
+                        auth_activated(&opt),
+                        auth_recent,
+                    ))
+                    .route(web::get().to(recent)),
             )
             .service(actix_files::Files::new("/", &base_dir))
     })
