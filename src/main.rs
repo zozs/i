@@ -9,8 +9,11 @@ use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
 use serde::{Deserialize, Serialize};
 use std::ffi::OsStr;
+use std::io;
 use std::io::Write;
 use std::path::Path;
+use std::time::SystemTime;
+use std::{fs, fs::DirEntry};
 use structopt::StructOpt;
 
 #[derive(StructOpt, Clone, Debug)]
@@ -60,12 +63,48 @@ pub struct UploadResponse {
     url: String,
 }
 
+struct DirEntryModTimePair {
+    dir_entry: DirEntry,
+    mod_time: SystemTime,
+}
+
 async fn index() -> impl Responder {
     HttpResponse::Ok().body("i API ready!")
 }
 
-async fn recent() -> impl Responder {
-    HttpResponse::Ok().body("you have reached the /recent endpoint.")
+async fn recent(opt: web::Data<Opt>) -> impl Responder {
+    let mut files = Vec::new();
+
+    let base_dir = match get_base_dir(&opt) {
+        Ok(x) => x.to_string(),
+        Err(_) => panic!("Cant get base dir!"),
+    };
+
+    // Apperently I need to use the result of visit_dirs
+    match visit_dirs(Path::new(&base_dir), &mut files) {
+        Ok(_) => {}
+        Err(_) => panic!("SystemTime before UNIX EPOCH!"),
+    };
+
+    // note the order of the partial_cmp
+    files.sort_by(|a, b| b.mod_time.partial_cmp(&a.mod_time).unwrap());
+
+    let n_of_recent_files = 5;
+    let n_of_recent_files = if n_of_recent_files < files.len() {
+        n_of_recent_files
+    } else {
+        files.len()
+    };
+    let mut latest_n_files: Vec<&DirEntryModTimePair> = Vec::new();
+
+    for i in 0..n_of_recent_files {
+        let file = &files[i];
+        latest_n_files.push(file);
+    }
+
+    let page = build_html_page(&latest_n_files, base_dir.len() + 1); // + 1 for the dir separator
+
+    HttpResponse::Ok().body(page)
 }
 
 fn generate_random_filename(extension: Option<&str>) -> String {
@@ -112,6 +151,47 @@ async fn parse_field_options(mut field: actix_multipart::Field) -> Result<Option
 fn public_path(filename: &str, opt: &Opt) -> Result<String, url::ParseError> {
     let public_base = url::Url::parse(&opt.server_url)?;
     Ok(public_base.join(filename)?.into_string())
+}
+
+fn visit_dirs(dir: &Path, files: &mut Vec<DirEntryModTimePair>) -> io::Result<()> {
+    // TODO: Check error handling when I know more about error handling in Rust.
+    if dir.is_dir() {
+        for entry in fs::read_dir(dir)? {
+            let dir_entry = entry?;
+            let path = dir_entry.path();
+            if path.is_dir() {
+                visit_dirs(&path, files)?
+            } else {
+                let mod_time = match dir_entry.metadata()?.modified() {
+                    Ok(n) => n,
+                    Err(_) => panic!("SystemTime before UNIX EPOCH!"),
+                };
+
+                files.push(DirEntryModTimePair {
+                    dir_entry,
+                    mod_time,
+                });
+            }
+        }
+    }
+
+    Ok(())
+}
+
+fn build_html_page(files: &Vec<&DirEntryModTimePair>, prefix_length: usize) -> String {
+    let page_start = String::from("<html><body>\n");
+    let page_end = String::from("</body></html>");
+
+    let mut page_body = String::new();
+
+    for entry in files {
+        if let Some(x) = entry.dir_entry.path().to_str() {
+            let path = &x[prefix_length..];
+            page_body.push_str(&format!("<a href=\"{}\">{}</a><br />\n", path, path));
+        }
+    }
+
+    page_start + &page_body + &page_end
 }
 
 async fn handle_upload(mut payload: Multipart, opt: web::Data<Opt>) -> Result<HttpResponse, Error> {
