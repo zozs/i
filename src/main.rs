@@ -97,12 +97,11 @@ async fn recent(opt: web::Data<Opt>) -> impl Responder {
     };
     let mut latest_n_files: Vec<&DirEntryModTimePair> = Vec::new();
 
-    for i in 0..n_of_recent_files {
-        let file = &files[i];
+    for file in files.iter().take(n_of_recent_files) {
         latest_n_files.push(file);
     }
 
-    let page = build_html_page(&latest_n_files, base_dir.len() + 1); // + 1 for the dir separator
+    let page = build_recent_html_page(&latest_n_files, base_dir.len() + 1); // + 1 for the dir separator
 
     HttpResponse::Ok().body(page)
 }
@@ -153,6 +152,7 @@ fn public_path(filename: &str, opt: &Opt) -> Result<String, url::ParseError> {
     Ok(public_base.join(filename)?.into_string())
 }
 
+// Inspired by first example here https://doc.rust-lang.org/std/fs/fn.read_dir.html
 fn visit_dirs(dir: &Path, files: &mut Vec<DirEntryModTimePair>) -> io::Result<()> {
     // TODO: Check error handling when I know more about error handling in Rust.
     if dir.is_dir() {
@@ -178,20 +178,17 @@ fn visit_dirs(dir: &Path, files: &mut Vec<DirEntryModTimePair>) -> io::Result<()
     Ok(())
 }
 
-fn build_html_page(files: &Vec<&DirEntryModTimePair>, prefix_length: usize) -> String {
-    let page_start = String::from("<html><body>\n");
-    let page_end = String::from("</body></html>");
-
-    let mut page_body = String::new();
+fn build_recent_html_page(files: &[&DirEntryModTimePair], prefix_length: usize) -> String {
+    let mut page = String::from("<html><body>\n");
 
     for entry in files {
         if let Some(x) = entry.dir_entry.path().to_str() {
             let path = &x[prefix_length..];
-            page_body.push_str(&format!("<a href=\"{}\">{}</a><br />\n", path, path));
+            page.push_str(&format!("<a href=\"{}\">{}</a><br>\n", path, path));
         }
     }
 
-    page_start + &page_body + &page_end
+    page + "</body></html>"
 }
 
 async fn handle_upload(mut payload: Multipart, opt: web::Data<Opt>) -> Result<HttpResponse, Error> {
