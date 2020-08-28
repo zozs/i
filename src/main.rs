@@ -9,8 +9,11 @@ use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
 use serde::{Deserialize, Serialize};
 use std::ffi::OsStr;
+use std::io;
 use std::io::Write;
 use std::path::Path;
+use std::time::SystemTime;
+use std::{fs, fs::DirEntry};
 use structopt::StructOpt;
 
 #[derive(StructOpt, Clone, Debug)]
@@ -60,8 +63,32 @@ pub struct UploadResponse {
     url: String,
 }
 
+struct DirEntryModTimePair {
+    dir_entry: DirEntry,
+    mod_time: SystemTime,
+}
+
 async fn index() -> impl Responder {
     HttpResponse::Ok().body("i API ready!")
+}
+
+async fn recent(opt: web::Data<Opt>) -> Result<impl Responder, Error> {
+    let mut files = Vec::new();
+
+    let base_dir = get_base_dir(&opt)?.to_string();
+    visit_dirs(Path::new(&base_dir), &mut files)?;
+
+    // note the order of the partial_cmp
+    files.sort_by(|a, b| b.mod_time.partial_cmp(&a.mod_time).unwrap());
+
+    let n_of_recent_files = 5;
+    let latest_n_files: Vec<&DirEntryModTimePair> = files.iter().take(n_of_recent_files).collect();
+
+    let page = build_recent_html_page(&latest_n_files, base_dir.len() + 1); // + 1 for the dir separator
+
+    Ok(HttpResponse::Ok()
+        .content_type("text/html; charset=utf-8")
+        .body(page))
 }
 
 fn generate_random_filename(extension: Option<&str>) -> String {
@@ -108,6 +135,45 @@ async fn parse_field_options(mut field: actix_multipart::Field) -> Result<Option
 fn public_path(filename: &str, opt: &Opt) -> Result<String, url::ParseError> {
     let public_base = url::Url::parse(&opt.server_url)?;
     Ok(public_base.join(filename)?.into_string())
+}
+
+// Inspired by first example here https://doc.rust-lang.org/std/fs/fn.read_dir.html
+fn visit_dirs(dir: &Path, files: &mut Vec<DirEntryModTimePair>) -> io::Result<()> {
+    // TODO: Check error handling when I know more about error handling in Rust.
+    if dir.is_dir() {
+        for entry in fs::read_dir(dir)? {
+            let dir_entry = entry?;
+            let path = dir_entry.path();
+            if path.is_dir() {
+                visit_dirs(&path, files)?
+            } else {
+                let mod_time = match dir_entry.metadata()?.modified() {
+                    Ok(n) => n,
+                    Err(_) => panic!("SystemTime before UNIX EPOCH!"),
+                };
+
+                files.push(DirEntryModTimePair {
+                    dir_entry,
+                    mod_time,
+                });
+            }
+        }
+    }
+
+    Ok(())
+}
+
+fn build_recent_html_page(files: &[&DirEntryModTimePair], prefix_length: usize) -> String {
+    let mut page = String::from("<html><body>\n");
+
+    for entry in files {
+        if let Some(x) = entry.dir_entry.path().to_str() {
+            let path = &x[prefix_length..];
+            page.push_str(&format!("<a href=\"{}\">{}</a><br>\n", path, path));
+        }
+    }
+
+    page + "</body></html>"
 }
 
 async fn handle_upload(mut payload: Multipart, opt: web::Data<Opt>) -> Result<HttpResponse, Error> {
@@ -221,6 +287,7 @@ async fn main() -> std::io::Result<()> {
 
     HttpServer::new(move || {
         let auth = HttpAuthentication::basic(auth_validator);
+        let auth_recent = auth.clone();
 
         App::new()
             .wrap(middleware::Logger::default())
@@ -231,6 +298,14 @@ async fn main() -> std::io::Result<()> {
                     .wrap(middleware::Condition::new(auth_activated(&opt), auth))
                     .route(web::get().to(index))
                     .route(web::post().to(handle_upload)),
+            )
+            .service(
+                web::resource("/recent")
+                    .wrap(middleware::Condition::new(
+                        auth_activated(&opt),
+                        auth_recent,
+                    ))
+                    .route(web::get().to(recent)),
             )
             .service(actix_files::Files::new("/", &base_dir))
     })
