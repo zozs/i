@@ -86,7 +86,9 @@ async fn recent(opt: web::Data<Opt>) -> Result<impl Responder, Error> {
 
     let page = build_recent_html_page(&latest_n_files, base_dir.len() + 1); // + 1 for the dir separator
 
-    Ok(HttpResponse::Ok().body(page))
+    Ok(HttpResponse::Ok()
+        .content_type("text/html; charset=utf-8")
+        .body(page))
 }
 
 fn generate_random_filename(extension: Option<&str>) -> String {
