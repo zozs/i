@@ -72,38 +72,21 @@ async fn index() -> impl Responder {
     HttpResponse::Ok().body("i API ready!")
 }
 
-async fn recent(opt: web::Data<Opt>) -> impl Responder {
+async fn recent(opt: web::Data<Opt>) -> Result<impl Responder, Error> {
     let mut files = Vec::new();
 
-    let base_dir = match get_base_dir(&opt) {
-        Ok(x) => x.to_string(),
-        Err(_) => panic!("Cant get base dir!"),
-    };
-
-    // Apperently I need to use the result of visit_dirs
-    match visit_dirs(Path::new(&base_dir), &mut files) {
-        Ok(_) => {}
-        Err(_) => panic!("SystemTime before UNIX EPOCH!"),
-    };
+    let base_dir = get_base_dir(&opt)?.to_string();
+    visit_dirs(Path::new(&base_dir), &mut files)?;
 
     // note the order of the partial_cmp
     files.sort_by(|a, b| b.mod_time.partial_cmp(&a.mod_time).unwrap());
 
     let n_of_recent_files = 5;
-    let n_of_recent_files = if n_of_recent_files < files.len() {
-        n_of_recent_files
-    } else {
-        files.len()
-    };
-    let mut latest_n_files: Vec<&DirEntryModTimePair> = Vec::new();
-
-    for file in files.iter().take(n_of_recent_files) {
-        latest_n_files.push(file);
-    }
+    let latest_n_files: Vec<&DirEntryModTimePair> = files.iter().take(n_of_recent_files).collect();
 
     let page = build_recent_html_page(&latest_n_files, base_dir.len() + 1); // + 1 for the dir separator
 
-    HttpResponse::Ok().body(page)
+    Ok(HttpResponse::Ok().body(page))
 }
 
 fn generate_random_filename(extension: Option<&str>) -> String {
