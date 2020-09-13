@@ -1,6 +1,6 @@
 [package]
 name = "i"
-version = "0.1.1"
+version = "0.2.0"
 authors = ["Linus Karlsson <linus@zozs.se>"]
 edition = "2018"
 
@@ -12,6 +12,9 @@ actix-multipart = "0.2.0"
 actix-rt = "1.0"
 actix-web = "2.0"
 actix-web-httpauth = "0.4.2"
+askama_actix = "0.10"
+askama = { version = "0.10.3", features = [ "with-actix-web" ] }
+chrono = "0.4.15"
 env_logger = "0.7.1"
 futures = "0.3.1"
 log = "0.4.8"

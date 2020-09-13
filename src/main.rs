@@ -4,6 +4,9 @@ use actix_web::{middleware, web, App, Error, HttpResponse, HttpServer, Responder
 use actix_web_httpauth::extractors::basic::{BasicAuth, Config};
 use actix_web_httpauth::extractors::AuthenticationError;
 use actix_web_httpauth::middleware::HttpAuthentication;
+use askama_actix::{Template, TemplateIntoResponse};
+use chrono::offset::Local;
+use chrono::DateTime;
 use futures::{StreamExt, TryStreamExt};
 use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
@@ -42,6 +45,10 @@ struct Opt {
     /// Password for basic auth, if you want to require authentication to upload files
     #[structopt(short = "p", long, env)]
     auth_pass: Option<String>,
+
+    /// Number of entries to show in the list of recent uploads
+    #[structopt(short = "r", long, env, default_value = "15")]
+    recents: usize,
 }
 
 pub struct FileUpload {
@@ -68,6 +75,17 @@ struct DirEntryModTimePair {
     mod_time: SystemTime,
 }
 
+struct RecentEntry {
+    timestamp: String,
+    url: String,
+}
+
+#[derive(Template)]
+#[template(path = "recent.html")]
+struct RecentTemplate<'a> {
+    recents: &'a [RecentEntry],
+}
+
 async fn index() -> impl Responder {
     HttpResponse::Ok().body("i API ready!")
 }
@@ -81,14 +99,10 @@ async fn recent(opt: web::Data<Opt>) -> Result<impl Responder, Error> {
     // note the order of the partial_cmp
     files.sort_by(|a, b| b.mod_time.partial_cmp(&a.mod_time).unwrap());
 
-    let n_of_recent_files = 5;
+    let n_of_recent_files = opt.recents;
     let latest_n_files: Vec<&DirEntryModTimePair> = files.iter().take(n_of_recent_files).collect();
 
-    let page = build_recent_html_page(&latest_n_files, base_dir.len() + 1); // + 1 for the dir separator
-
-    Ok(HttpResponse::Ok()
-        .content_type("text/html; charset=utf-8")
-        .body(page))
+    build_recent_html_page(&latest_n_files, base_dir.len() + 1) // + 1 for the dir separator
 }
 
 fn generate_random_filename(extension: Option<&str>) -> String {
@@ -163,17 +177,26 @@ fn visit_dirs(dir: &Path, files: &mut Vec<DirEntryModTimePair>) -> io::Result<()
     Ok(())
 }
 
-fn build_recent_html_page(files: &[&DirEntryModTimePair], prefix_length: usize) -> String {
-    let mut page = String::from("<html><body>\n");
-
+fn build_recent_html_page(
+    files: &[&DirEntryModTimePair],
+    prefix_length: usize,
+) -> Result<HttpResponse, Error> {
+    // Stringify DirEntryModTimePair
+    // TODO: can we make some magic converter Trait to do this outside this function?
+    let mut recents: Vec<RecentEntry> = Vec::new();
     for entry in files {
         if let Some(x) = entry.dir_entry.path().to_str() {
             let path = &x[prefix_length..];
-            page.push_str(&format!("<a href=\"{}\">{}</a><br>\n", path, path));
+            let datetime: DateTime<Local> = entry.mod_time.into();
+            recents.push(RecentEntry {
+                timestamp: datetime.format("%Y-%m-%d %T").to_string(),
+                url: path.to_string(),
+            });
         }
     }
 
-    page + "</body></html>"
+    let template = RecentTemplate { recents: &recents };
+    template.into_response()
 }
 
 async fn handle_upload(mut payload: Multipart, opt: web::Data<Opt>) -> Result<HttpResponse, Error> {

@@ -55,3 +55,4 @@ See `i --help` for details.
 * `BASE_DIR`: Set to the file system directory where uploaded files will be stored to and served from. Default `./tmp`.
 * `SERVER_URL`: Set to the complete server URL base which should be used when generating links. Default: `http://localhost:8088`.
 * `PORT`: Which port `i` should listen to. Default `8088`.
+* `RECENTS`: How many entries to show in the list of recent uploads at the `/recent` endpoint (default: 15)

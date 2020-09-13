@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+
+<html>
+    <head>
+        <meta charset="utf-8">
+        <title>i: recent uploads</title>
+    </head>
+
+    <body>
+        <h1>Recent uploads</h1>
+        <ul>
+            {% for recent in recents %}
+            <li>
+                {{ recent.timestamp }}: <a href="{{ recent.url }}">{{ recent.url }}</a>
+            </li>
+            {% endfor %}
+        </ul>
+    </body>
+</html>
