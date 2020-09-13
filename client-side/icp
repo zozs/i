@@ -1,0 +1,23 @@
+#!/bin/sh
+
+usage () {
+	echo "$(basename $0) [-o] <file>"
+	exit 1
+}
+
+
+if [ $# -ne 1 ] && [ $# -ne 2 ]; then
+	usage
+elif [ $# -eq 2 ] && [ "$1" != "-o" ]; then
+	usage
+fi
+
+original='{"useOriginalFilename":false}'
+filename="$1"
+if [ $# -eq 2 ]; then
+	original='{"useOriginalFilename":true}'
+	filename="$2"
+fi
+
+curl -n -s -F file=@$"$filename" -F options="$original" http://localhost:8088 | jq -r .url | xargs xdg-open
+
