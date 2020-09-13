@@ -1,5 +1,11 @@
 # i
 
+i is a upload service over HTTP that you can run on your own service.
+
+It is useful for example to easily upload screenshots from your computer to your own server, and get a short URL such as `https://i.example.com/oYP59upc.png` in return, which you can send to your friends over, e.g., chat or mail.
+
+It works over HTTP, which makes it easy to upload files using different clients. If desired, it uses HTTP Basic Authentication to ensure that not everyone can upload files to your server. Filenames are auto-generated random strings (by default), to avoid file enumeration. Optionally, you can also upload with the real filename.
+
 ## Compile
 
 Run `cargo build`
@@ -11,6 +17,13 @@ Run `RUST_LOG=debug cargo run`
 ## Uploading files
 
 Check the [client-side](client-side/) directory in this repo for some examples on how files or screenshots can be uploaded to the server.
+
+The following examples are included:
+
+* [screenshot-open.sh](client-side/screenshot-open.sh) Take a screenshot of a selected area of the screen, upload it, and open the resulting URL in the default browser.
+* [screenshot.sh](client-side/screenshot.sh) Take a screenshot of a selected area of the screen, upload it, and copy the resulting URL to the clipboard.
+* [icp](client-side/icp) Upload a file from the terminal using `icp file.txt`, upload it, and open the resulting URL in the default browser.
+* [upload-with-i.desktop](client-side/upload-with-i.desktop) Copy file to `~/.local/share/file-manager/actions/` to add "Upload with i" entry to the context menu in your file manager. Needs to be modified with the correct path to `icp` above, on the `Exec` line.
 
 ### Using curl
 

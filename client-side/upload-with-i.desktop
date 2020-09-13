@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Action
+Tooltip=Upload with i
+Name=Upload with i
+MimeTypes=all/all
+Profiles=profile-zero;
+
+[X-Action-Profile profile-zero]
+Exec=icp %f
+Name=Upload with i
+SelectionCount==1
