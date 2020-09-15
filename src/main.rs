@@ -1,27 +1,16 @@
-use actix_multipart::Multipart;
 use actix_web::dev::ServiceRequest;
 use actix_web::{middleware, web, App, Error, HttpResponse, HttpServer, Responder};
 use actix_web_httpauth::extractors::basic::{BasicAuth, Config};
 use actix_web_httpauth::extractors::AuthenticationError;
 use actix_web_httpauth::middleware::HttpAuthentication;
-use askama_actix::{Template, TemplateIntoResponse};
-use chrono::offset::Local;
-use chrono::DateTime;
-use futures::{StreamExt, TryStreamExt};
-use rand::distributions::Alphanumeric;
-use rand::{thread_rng, Rng};
-use serde::{Deserialize, Serialize};
-use std::ffi::OsStr;
-use std::io;
-use std::io::Write;
-use std::path::Path;
-use std::time::SystemTime;
-use std::{fs, fs::DirEntry};
 use structopt::StructOpt;
+
+mod recent;
+mod upload;
 
 #[derive(StructOpt, Clone, Debug)]
 #[structopt(name = "i", about = "i is a simple file uploader web service.")]
-struct Opt {
+pub struct Opt {
     /// Enable verbose logging
     #[structopt(short, long)]
     verbose: bool,
@@ -51,74 +40,8 @@ struct Opt {
     recents: usize,
 }
 
-pub struct FileUpload {
-    original_filename: String,
-    random_filename: String,
-    random_filename_path: String,
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Options {
-    #[serde(default)]
-    use_original_filename: bool, // default for bool is false.
-}
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct UploadResponse {
-    url: String,
-}
-
-struct DirEntryModTimePair {
-    dir_entry: DirEntry,
-    mod_time: SystemTime,
-}
-
-struct RecentEntry {
-    timestamp: String,
-    url: String,
-}
-
-#[derive(Template)]
-#[template(path = "recent.html")]
-struct RecentTemplate<'a> {
-    recents: &'a [RecentEntry],
-}
-
 async fn index() -> impl Responder {
     HttpResponse::Ok().body("i API ready!")
-}
-
-async fn recent(opt: web::Data<Opt>) -> Result<impl Responder, Error> {
-    let mut files = Vec::new();
-
-    let base_dir = get_base_dir(&opt)?.to_string();
-    visit_dirs(Path::new(&base_dir), &mut files)?;
-
-    // note the order of the partial_cmp
-    files.sort_by(|a, b| b.mod_time.partial_cmp(&a.mod_time).unwrap());
-
-    let n_of_recent_files = opt.recents;
-    let latest_n_files: Vec<&DirEntryModTimePair> = files.iter().take(n_of_recent_files).collect();
-
-    build_recent_html_page(&latest_n_files, base_dir.len() + 1) // + 1 for the dir separator
-}
-
-fn generate_random_filename(extension: Option<&str>) -> String {
-    let random_string = thread_rng().sample_iter(&Alphanumeric).take(8).collect();
-    match extension {
-        Some(ext) => format!("{}.{}", random_string, ext),
-        None => random_string,
-    }
-}
-
-fn filename_path(filename: &str, opt: &Opt) -> Result<String, Error> {
-    Ok(format!(
-        "{}/{}",
-        get_base_dir(opt)?,
-        sanitize_filename::sanitize(&filename)
-    ))
 }
 
 fn get_base_dir<'a>(opt: &'a Opt) -> std::io::Result<&'a str> {
@@ -126,143 +49,6 @@ fn get_base_dir<'a>(opt: &'a Opt) -> std::io::Result<&'a str> {
     std::fs::create_dir_all(&opt.base_dir)?;
 
     Ok(&opt.base_dir)
-}
-
-fn get_extension_from_filename(filename: &str) -> Option<&str> {
-    Path::new(filename).extension().and_then(OsStr::to_str)
-}
-
-async fn parse_field_options(mut field: actix_multipart::Field) -> Result<Options, Error> {
-    // Parse data in options json.
-
-    // First read multipart data to Vec<u8>.
-    let mut v: Vec<u8> = Vec::new();
-    while let Some(chunk) = field.next().await {
-        let data = chunk.unwrap();
-        // filesystem operations are blocking, we have to use threadpool
-        v = web::block(move || v.write_all(&data).map(|_| v)).await?;
-    }
-
-    Ok(serde_json::from_slice(&v)?)
-}
-
-fn public_path(filename: &str, opt: &Opt) -> Result<String, url::ParseError> {
-    let public_base = url::Url::parse(&opt.server_url)?;
-    Ok(public_base.join(filename)?.into_string())
-}
-
-// Inspired by first example here https://doc.rust-lang.org/std/fs/fn.read_dir.html
-fn visit_dirs(dir: &Path, files: &mut Vec<DirEntryModTimePair>) -> io::Result<()> {
-    // TODO: Check error handling when I know more about error handling in Rust.
-    if dir.is_dir() {
-        for entry in fs::read_dir(dir)? {
-            let dir_entry = entry?;
-            let path = dir_entry.path();
-            if path.is_dir() {
-                visit_dirs(&path, files)?
-            } else {
-                let mod_time = match dir_entry.metadata()?.modified() {
-                    Ok(n) => n,
-                    Err(_) => panic!("SystemTime before UNIX EPOCH!"),
-                };
-
-                files.push(DirEntryModTimePair {
-                    dir_entry,
-                    mod_time,
-                });
-            }
-        }
-    }
-
-    Ok(())
-}
-
-fn build_recent_html_page(
-    files: &[&DirEntryModTimePair],
-    prefix_length: usize,
-) -> Result<HttpResponse, Error> {
-    // Stringify DirEntryModTimePair
-    // TODO: can we make some magic converter Trait to do this outside this function?
-    let mut recents: Vec<RecentEntry> = Vec::new();
-    for entry in files {
-        if let Some(x) = entry.dir_entry.path().to_str() {
-            let path = &x[prefix_length..];
-            let datetime: DateTime<Local> = entry.mod_time.into();
-            recents.push(RecentEntry {
-                timestamp: datetime.format("%Y-%m-%d %T").to_string(),
-                url: path.to_string(),
-            });
-        }
-    }
-
-    let template = RecentTemplate { recents: &recents };
-    template.into_response()
-}
-
-async fn handle_upload(mut payload: Multipart, opt: web::Data<Opt>) -> Result<HttpResponse, Error> {
-    let mut file_field: Option<FileUpload> = None;
-    let mut options_field: Option<Options> = None;
-
-    // iterate over multipart stream
-    while let Ok(Some(mut field)) = payload.try_next().await {
-        if let Some(content_disposition) = field.content_disposition() {
-            // Check if it is file or data part of form.
-            match content_disposition.get_name() {
-                Some("file") => {
-                    // Save to temporary filename, we might later rename it to original.
-                    let original_filename = content_disposition.get_filename().unwrap();
-                    let extension = get_extension_from_filename(original_filename);
-                    let random_filename = generate_random_filename(extension);
-
-                    let filepath = filename_path(&random_filename, &opt)?;
-                    let random_filename_path = filepath.clone();
-                    // File::create is blocking operation, use threadpool
-                    let mut f = web::block(|| std::fs::File::create(filepath))
-                        .await
-                        .map_err(|_| {
-                            actix_web::error::ErrorInternalServerError("Could not upload file")
-                        })?;
-                    // Field in turn is stream of *Bytes* object
-                    while let Some(chunk) = field.next().await {
-                        let data = chunk.unwrap();
-                        // filesystem operations are blocking, we have to use threadpool
-                        f = web::block(move || f.write_all(&data).map(|_| f)).await?;
-                    }
-                    file_field = Some(FileUpload {
-                        original_filename: original_filename.to_string(),
-                        random_filename,
-                        random_filename_path,
-                    });
-                }
-                Some("options") => options_field = parse_field_options(field).await.ok(),
-                _ => { /* TODO: show error or something */ }
-            }
-        } else {
-            log::debug!("no content disposition in field :(");
-        }
-    }
-
-    // Check if we received both file itself and data.
-    if let (Some(file), Some(options)) = (file_field, options_field) {
-        let final_filename: &str = if options.use_original_filename {
-            // Rename from temporary random filename to original. Will overwrite if filename already exists.
-            let original_filename_path = filename_path(&file.original_filename, &opt)?;
-            std::fs::rename(&file.random_filename_path, &original_filename_path)?;
-            &file.original_filename
-        } else {
-            &file.random_filename
-        };
-
-        // Derive url of newly created file.
-        let url =
-            public_path(final_filename, &opt).map_err(|_| HttpResponse::InternalServerError())?;
-
-        Ok(HttpResponse::SeeOther()
-            .header("Location", url.as_str())
-            .json(UploadResponse { url }))
-    } else {
-        Ok(HttpResponse::BadRequest().into())
-    }
 }
 
 fn auth_activated(opt: &Opt) -> bool {
@@ -320,7 +106,7 @@ async fn main() -> std::io::Result<()> {
                 web::resource("/")
                     .wrap(middleware::Condition::new(auth_activated(&opt), auth))
                     .route(web::get().to(index))
-                    .route(web::post().to(handle_upload)),
+                    .route(web::post().to(upload::handle_upload)),
             )
             .service(
                 web::resource("/recent")
@@ -328,7 +114,7 @@ async fn main() -> std::io::Result<()> {
                         auth_activated(&opt),
                         auth_recent,
                     ))
-                    .route(web::get().to(recent)),
+                    .route(web::get().to(recent::recent)),
             )
             .service(actix_files::Files::new("/", &base_dir))
     })
