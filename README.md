@@ -1,10 +1,10 @@
 # i
 
-i is a upload service over HTTP that you can run on your own service.
+i is a upload service over HTTP that you can run on your own server.
 
-It is useful for example to easily upload screenshots from your computer to your own server, and get a short URL such as `https://i.example.com/oYP59upc.png` in return, which you can send to your friends over, e.g., chat or mail.
+It is useful to, for example, easily upload screenshots from your computer to your own server, and get a short URL such as `https://i.example.com/oYP59upc.png`, which you can send to your friends over, e.g., chat or mail.
 
-It works over HTTP, which makes it easy to upload files using different clients. If desired, it uses HTTP Basic Authentication to ensure that not everyone can upload files to your server. Filenames are auto-generated random strings (by default), to avoid file enumeration. Optionally, you can also upload with the real filename.
+It works over HTTP, which makes it easy to upload files using different clients. It is also easy to both upload and download files from everywhere in the world, as long as you can make a regular HTTP connection. If desired, it uses HTTP Basic Authentication to ensure that not everyone can upload files to your server. Filenames are auto-generated random strings (by default), to avoid file enumeration. Optionally, you can also upload and keep the original filename.
 
 ## Compile
 
@@ -17,6 +17,8 @@ Run `RUST_LOG=debug cargo run`
 ## Uploading files
 
 Check the [client-side](client-side/) directory in this repo for some examples on how files or screenshots can be uploaded to the server.
+
+Note that you need to modify the server URL in each script to point to your own running instance.
 
 The following examples are included:
 
