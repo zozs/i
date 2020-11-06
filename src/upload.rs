@@ -16,11 +16,17 @@ struct FileUpload {
     random_filename_path: String,
 }
 
+fn default_as_true() -> bool {
+    true
+}
+
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct Options {
     #[serde(default)]
     use_original_filename: bool, // default for bool is false.
+    #[serde(default = "default_as_true")] // semi-ugly hack to get true as default.
+    redirect: bool,
 }
 
 #[derive(Serialize)]
@@ -54,7 +60,11 @@ pub async fn handle_upload(
     opt: web::Data<Opt>,
 ) -> Result<HttpResponse, Error> {
     let mut file_field: Option<FileUpload> = None;
-    let mut options_field: Option<Options> = None;
+    // Use default options field if we don't wish to include it.
+    let mut options_field: Option<Options> = Some(Options {
+        use_original_filename: false,
+        redirect: true,
+    });
 
     // iterate over multipart stream
     while let Ok(Some(mut field)) = payload.try_next().await {
@@ -110,9 +120,15 @@ pub async fn handle_upload(
         let url =
             public_path(final_filename, &opt).map_err(|_| HttpResponse::InternalServerError())?;
 
-        Ok(HttpResponse::SeeOther()
-            .header("Location", url.as_str())
-            .json(UploadResponse { url }))
+        let response = if options.redirect {
+            HttpResponse::SeeOther()
+                .header("Location", url.as_str())
+                .json(UploadResponse { url })
+        } else {
+            HttpResponse::Ok().json(UploadResponse { url })
+        };
+
+        Ok(response)
     } else {
         Ok(HttpResponse::BadRequest().into())
     }
