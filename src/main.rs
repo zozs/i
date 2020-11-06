@@ -59,20 +59,15 @@ async fn auth_validator(
     req: ServiceRequest,
     credentials: BasicAuth,
 ) -> Result<ServiceRequest, Error> {
-    let opt = req
-        .app_data::<Opt>()
-        .map(|data| data.get_ref().clone())
-        .unwrap();
+    let opt: &Opt = req.app_data::<web::Data<Opt>>().unwrap();
 
-    if let (Some(euser), Some(epass)) = (opt.auth_user, opt.auth_pass) {
+    if let (Some(euser), Some(epass)) = (opt.auth_user.as_ref(), opt.auth_pass.as_ref()) {
         // Since both user and pass are given, we now require authentication. Check that they match.
         return match (credentials.user_id(), credentials.password()) {
-            (auser, Some(apass)) if auser == &euser && apass == &epass => Ok(req), // success!
+            (auser, Some(apass)) if auser == euser && apass == epass => Ok(req), // success!
             _ => {
-                let config = req
-                    .app_data::<Config>()
-                    .map(|data| data.get_ref().clone())
-                    .unwrap_or_else(Default::default);
+                let config: &Config = req.app_data::<web::Data<Config>>().unwrap();
+                let config: Config = config.clone();
                 Err(AuthenticationError::from(config).into())
             }
         };
