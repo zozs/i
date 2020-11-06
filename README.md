@@ -26,6 +26,7 @@ The following examples are included:
 * [screenshot.sh](client-side/screenshot.sh) Take a screenshot of a selected area of the screen, upload it, and copy the resulting URL to the clipboard.
 * [icp](client-side/icp) Upload a file from the terminal using `icp file.txt`, upload it, and open the resulting URL in the default browser.
 * [upload-with-i.desktop](client-side/upload-with-i.desktop) Copy file to `~/.local/share/file-manager/actions/` to add "Upload with i" entry to the context menu in your file manager. Needs to be modified with the correct path to `icp` above, on the `Exec` line.
+* [ios-shortcut.png](client-side/ios-shortcut.png) An image describing an iOS shortcut that can be used from the Share menu on images and documents. Will upload to the server, and put the resulting URL in the clipboard, so that it can be pasted into an e-mail or text.
 
 ### Using curl
 
