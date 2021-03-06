@@ -44,7 +44,12 @@ fn filename_path(filename: &str, opt: &Opt) -> Result<String, Error> {
 }
 
 fn generate_random_filename(extension: Option<&str>) -> String {
-    let random_string = thread_rng().sample_iter(&Alphanumeric).take(8).collect();
+    let mut rng = thread_rng();
+    let random_string: String = std::iter::repeat(())
+            .map(|()| rng.sample(Alphanumeric))
+            .map(char::from)
+            .take(8)
+            .collect();
     match extension {
         Some(ext) => format!("{}.{}", random_string, ext),
         None => random_string,
