@@ -38,6 +38,15 @@ pub struct Opt {
     /// Number of entries to show in the list of recent uploads
     #[structopt(short = "r", long, env, default_value = "15")]
     recents: usize,
+
+    /// Request logger format
+    #[structopt(
+        short,
+        long,
+        env,
+        default_value = r#"%a "%r" %s %b "%{Referer}i" "%{User-Agent}i" %T""#
+    )]
+    logger_format: String,
 }
 
 async fn index() -> impl Responder {
@@ -75,7 +84,7 @@ async fn auth_validator(
     Ok(req)
 }
 
-#[actix_rt::main]
+#[actix_web::main]
 async fn main() -> std::io::Result<()> {
     let opt = Opt::from_args();
 
@@ -94,7 +103,7 @@ async fn main() -> std::io::Result<()> {
         let auth_recent = auth.clone();
 
         App::new()
-            .wrap(middleware::Logger::default())
+            .wrap(middleware::Logger::new(&opt.logger_format))
             .data(Config::default().realm("i: file upload"))
             .data(opt.clone())
             .service(
