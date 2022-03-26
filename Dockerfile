@@ -1,12 +1,12 @@
 # building stage
-FROM rust:1.56 as builder
+FROM rust:1.59 as builder
 
 WORKDIR /usr/src/myapp
 COPY . .
 RUN cargo install --path .
 
 # running stage
-FROM debian:buster-slim
+FROM debian:11-slim
 ARG APP=/usr/src/app
 
 RUN apt-get update \

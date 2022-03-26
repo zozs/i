@@ -1,19 +1,40 @@
 <!DOCTYPE html>
 
 <html>
-    <head>
-        <meta charset="utf-8">
-        <title>i: recent uploads</title>
-    </head>
 
-    <body>
-        <h1>Recent uploads</h1>
-        <ul>
-            {% for recent in recents %}
-            <li>
-                {{ recent.timestamp }}: <a href="{{ recent.url }}">{{ recent.url }}</a>
-            </li>
-            {% endfor %}
-        </ul>
-    </body>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="recent/bulma.min.css">
+  <title>i: recent uploads</title>
+</head>
+
+<body>
+  <section class="section">
+    <div class="container">
+      <h1 class="title">Recent uploads</h1>
+
+      <h3 class="title is-5">List</h3>
+      <table class="table is-striped is-narrow">
+        <thead>
+          <tr>
+            <th>Timestamp</th>
+            <th>Filename</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for recent in recents %}
+          <tr>
+            <td>{{ recent.timestamp }}</td>
+            <td><a href="{{ recent.url }}">{{ recent.url }}</a></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+
+      <h3 class="title is-5">Thumbnails</h3>
+    </div>
+  </section>
+</body>
+
 </html>

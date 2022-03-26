@@ -49,6 +49,11 @@ pub struct Opt {
     logger_format: String,
 }
 
+async fn bulma() -> impl Responder {
+    let bulma = include_str!("../dist/bulma.min.css");
+    HttpResponse::Ok().content_type("text/css").body(bulma)
+}
+
 async fn index() -> impl Responder {
     HttpResponse::Ok().body("i API ready!")
 }
@@ -120,6 +125,7 @@ async fn main() -> std::io::Result<()> {
                     ))
                     .route(web::get().to(recent::recent)),
             )
+            .service(web::resource("/recent/bulma.min.css").route(web::get().to(bulma)))
             .service(actix_files::Files::new("/", &base_dir))
     })
     .bind(bind_string)?
