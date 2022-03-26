@@ -109,8 +109,8 @@ async fn main() -> std::io::Result<()> {
 
         App::new()
             .wrap(middleware::Logger::new(&opt.logger_format))
-            .data(Config::default().realm("i: file upload"))
-            .data(opt.clone())
+            .app_data(web::Data::new(Config::default().realm("i: file upload")))
+            .app_data(web::Data::new(opt.clone()))
             .service(
                 web::resource("/")
                     .wrap(middleware::Condition::new(auth_activated(&opt), auth))

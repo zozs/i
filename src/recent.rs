@@ -1,5 +1,5 @@
 use actix_web::{web, Error, HttpResponse, Responder};
-use askama_actix::{Template, TemplateIntoResponse};
+use askama_actix::{Template, TemplateToResponse};
 use chrono::offset::Local;
 use chrono::DateTime;
 use std::io;
@@ -44,7 +44,7 @@ fn build_recent_html_page(
     }
 
     let template = RecentTemplate { recents: &recents };
-    template.into_response()
+    Ok(template.to_response())
 }
 
 pub async fn recent(opt: web::Data<Opt>) -> Result<impl Responder, Error> {

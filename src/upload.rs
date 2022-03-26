@@ -73,40 +73,37 @@ pub async fn handle_upload(
 
     // iterate over multipart stream
     while let Ok(Some(mut field)) = payload.try_next().await {
-        if let Some(content_disposition) = field.content_disposition() {
-            // Check if it is file or data part of form.
-            match content_disposition.get_name() {
-                Some("file") => {
-                    // Save to temporary filename, we might later rename it to original.
-                    let original_filename = content_disposition.get_filename().unwrap();
-                    let extension = get_extension_from_filename(original_filename);
-                    let random_filename = generate_random_filename(extension);
+        let content_disposition = field.content_disposition();
+        // Check if it is file or data part of form.
+        match content_disposition.get_name() {
+            Some("file") => {
+                // Save to temporary filename, we might later rename it to original.
+                let original_filename = content_disposition.get_filename().unwrap().to_string();
+                let extension = get_extension_from_filename(&original_filename);
+                let random_filename = generate_random_filename(extension);
 
-                    let filepath = filename_path(&random_filename, &opt)?;
-                    let random_filename_path = filepath.clone();
-                    // File::create is blocking operation, use threadpool
-                    let mut f = web::block(|| std::fs::File::create(filepath))
-                        .await
-                        .map_err(|_| {
-                            actix_web::error::ErrorInternalServerError("Could not upload file")
-                        })?;
-                    // Field in turn is stream of *Bytes* object
-                    while let Some(chunk) = field.next().await {
-                        let data = chunk.unwrap();
-                        // filesystem operations are blocking, we have to use threadpool
-                        f = web::block(move || f.write_all(&data).map(|_| f)).await?;
-                    }
-                    file_field = Some(FileUpload {
-                        original_filename: original_filename.to_string(),
-                        random_filename,
-                        random_filename_path,
-                    });
+                let filepath = filename_path(&random_filename, &opt)?;
+                let random_filename_path = filepath.clone();
+                // File::create is blocking operation, use threadpool
+                let mut f = web::block(|| std::fs::File::create(filepath))
+                    .await
+                    .map_err(|_| {
+                        actix_web::error::ErrorInternalServerError("Could not upload file")
+                    })??;
+                // Field in turn is stream of *Bytes* object
+                while let Some(chunk) = field.next().await {
+                    let data = chunk.unwrap();
+                    // filesystem operations are blocking, we have to use threadpool
+                    f = web::block(move || f.write_all(&data).map(|_| f)).await??;
                 }
-                Some("options") => options_field = parse_field_options(field).await.ok(),
-                _ => { /* TODO: show error or something */ }
+                file_field = Some(FileUpload {
+                    original_filename,
+                    random_filename,
+                    random_filename_path,
+                });
             }
-        } else {
-            log::debug!("no content disposition in field :(");
+            Some("options") => options_field = parse_field_options(field).await.ok(),
+            _ => { /* TODO: show error or something */ }
         }
     }
 
@@ -123,11 +120,11 @@ pub async fn handle_upload(
 
         // Derive url of newly created file.
         let url =
-            public_path(final_filename, &opt).map_err(|_| HttpResponse::InternalServerError())?;
+            public_path(final_filename, &opt).map_err(|_| actix_web::error::ErrorInternalServerError(""))?;
 
         let response = if options.redirect {
             HttpResponse::SeeOther()
-                .header("Location", url.as_str())
+                .append_header(("Location", url.as_str()))
                 .json(UploadResponse { url })
         } else {
             HttpResponse::Ok().json(UploadResponse { url })
@@ -147,7 +144,7 @@ async fn parse_field_options(mut field: actix_multipart::Field) -> Result<Option
     while let Some(chunk) = field.next().await {
         let data = chunk.unwrap();
         // filesystem operations are blocking, we have to use threadpool
-        v = web::block(move || v.write_all(&data).map(|_| v)).await?;
+        v = web::block(move || v.write_all(&data).map(|_| v)).await??;
     }
 
     Ok(serde_json::from_slice(&v)?)
