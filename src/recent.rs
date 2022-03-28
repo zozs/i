@@ -50,8 +50,8 @@ fn build_recent_html_page(
 pub async fn recent(opt: web::Data<Opt>) -> Result<impl Responder, Error> {
     let mut files = Vec::new();
 
-    let base_dir = get_base_dir(&opt)?.to_string();
-    visit_dirs(Path::new(&base_dir), &mut files)?;
+    let base_dir = get_base_dir(&opt)?;
+    visit_dirs(&base_dir, &mut files)?;
 
     // note the order of the partial_cmp
     files.sort_by(|a, b| b.mod_time.partial_cmp(&a.mod_time).unwrap());
@@ -59,7 +59,8 @@ pub async fn recent(opt: web::Data<Opt>) -> Result<impl Responder, Error> {
     let n_of_recent_files = opt.recents;
     let latest_n_files: Vec<&DirEntryModTimePair> = files.iter().take(n_of_recent_files).collect();
 
-    build_recent_html_page(&latest_n_files, base_dir.len() + 1) // + 1 for the dir separator
+    build_recent_html_page(&latest_n_files, base_dir.to_string_lossy().len() + 1)
+    // + 1 for the dir separator
 }
 
 // Inspired by first example here https://doc.rust-lang.org/std/fs/fn.read_dir.html

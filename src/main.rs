@@ -3,18 +3,16 @@ use actix_web::{middleware, web, App, Error, HttpResponse, HttpServer, Responder
 use actix_web_httpauth::extractors::basic::{BasicAuth, Config};
 use actix_web_httpauth::extractors::AuthenticationError;
 use actix_web_httpauth::middleware::HttpAuthentication;
+use std::path::{Path, PathBuf};
 use structopt::StructOpt;
 
 mod recent;
+mod thumbnail;
 mod upload;
 
 #[derive(StructOpt, Clone, Debug)]
 #[structopt(name = "i", about = "i is a simple file uploader web service.")]
 pub struct Opt {
-    /// Enable verbose logging
-    #[structopt(short, long)]
-    verbose: bool,
-
     /// Port to listen on.
     #[structopt(short = "P", long, default_value = "8088", env)]
     port: u16,
@@ -39,6 +37,10 @@ pub struct Opt {
     #[structopt(short = "r", long, env, default_value = "15")]
     recents: usize,
 
+    /// Thumbnail size
+    #[structopt(short, long, env, default_value = "150")]
+    thumbnail_size: u32,
+
     /// Request logger format
     #[structopt(
         short,
@@ -49,6 +51,8 @@ pub struct Opt {
     logger_format: String,
 }
 
+const THUMBNAIL_SUBDIR: &str = "thumbnails";
+
 async fn bulma() -> impl Responder {
     let bulma = include_str!("../dist/bulma.min.css");
     HttpResponse::Ok().content_type("text/css").body(bulma)
@@ -58,11 +62,21 @@ async fn index() -> impl Responder {
     HttpResponse::Ok().body("i API ready!")
 }
 
-fn get_base_dir<'a>(opt: &'a Opt) -> std::io::Result<&'a str> {
+fn get_base_dir<'a>(opt: &'a Opt) -> std::io::Result<PathBuf> {
     // Create directory where files should be uploaded.
-    std::fs::create_dir_all(&opt.base_dir)?;
+    let path = Path::new(&opt.base_dir);
+    std::fs::create_dir_all(path)?;
 
-    Ok(&opt.base_dir)
+    Ok(path.to_path_buf())
+}
+
+fn get_thumbnail_dir(opt: &Opt) -> std::io::Result<PathBuf> {
+    // Create directory where thumbnails should be uploaded.
+    let path = std::path::Path::new(&opt.base_dir);
+    let path = path.join(THUMBNAIL_SUBDIR);
+    std::fs::create_dir_all(&path)?;
+
+    Ok(path)
 }
 
 fn auth_activated(opt: &Opt) -> bool {
@@ -98,10 +112,10 @@ async fn main() -> std::io::Result<()> {
     let host = "0.0.0.0";
     let bind_string = format!("{}:{}", host, opt.port);
 
-    let base_dir = get_base_dir(&opt)?.to_string();
+    let base_dir = get_base_dir(&opt)?;
 
     log::info!("listening on {}", bind_string);
-    log::info!("serving and storing files in: {}", base_dir);
+    log::info!("serving and storing files in: {:?}", base_dir);
 
     HttpServer::new(move || {
         let auth = HttpAuthentication::basic(auth_validator);
