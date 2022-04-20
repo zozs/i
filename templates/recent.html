@@ -37,14 +37,16 @@
         {% for recent in recents %}
         <div class="column is-narrow">
           <div class="card">
-            <div class="card-image">
-              <figure class="image is-128x128">
-                <img src="{{ recent.thumbnail_url }}" alt="image">
+            <div class="card-image has-text-centered">
+              <figure class="image is-128x128 is-inline-block">
+                <a href="{{ recent.url }}">
+                  <img src="{{ recent.thumbnail_url }}" alt="image">
+                </a>
               </figure>
             </div>
             <div class="card-content">
               <div class="content">
-                {{ recent.url }}
+                <a href="{{ recent.url }}">{{ recent.url }}</a>
                 <br>
                 <time class="is-size-7" datetime="{{ recent.timestamp }}">{{ recent.timestamp }}</time>
               </div>
