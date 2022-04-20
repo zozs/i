@@ -1,4 +1,5 @@
 use actix_web::dev::ServiceRequest;
+use actix_web::web::Bytes;
 use actix_web::{middleware, web, App, Error, HttpResponse, HttpServer, Responder};
 use actix_web_httpauth::extractors::basic::{BasicAuth, Config};
 use actix_web_httpauth::extractors::AuthenticationError;
@@ -51,7 +52,7 @@ pub struct Opt {
     logger_format: String,
 }
 
-const THUMBNAIL_SUBDIR: &str = "thumbnails";
+pub const THUMBNAIL_SUBDIR: &str = "thumbnails";
 
 async fn bulma() -> impl Responder {
     let bulma = include_str!("../dist/bulma.min.css");
@@ -60,6 +61,13 @@ async fn bulma() -> impl Responder {
 
 async fn index() -> impl Responder {
     HttpResponse::Ok().body("i API ready!")
+}
+
+async fn placeholder_thumbnail() -> impl Responder {
+    let placeholder = Bytes::from_static(include_bytes!("../dist/placeholder.png"));
+    HttpResponse::Ok()
+        .content_type("image/png")
+        .body(placeholder)
 }
 
 fn get_base_dir<'a>(opt: &'a Opt) -> std::io::Result<PathBuf> {
@@ -140,6 +148,10 @@ async fn main() -> std::io::Result<()> {
                     .route(web::get().to(recent::recent)),
             )
             .service(web::resource("/recent/bulma.min.css").route(web::get().to(bulma)))
+            .service(
+                web::resource("/recent/placeholder.png")
+                    .route(web::get().to(placeholder_thumbnail)),
+            )
             .service(actix_files::Files::new("/", &base_dir))
     })
     .bind(bind_string)?

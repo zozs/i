@@ -121,6 +121,7 @@ pub async fn handle_upload(
         let url = public_path(final_filename, &opt).map_err(|_| ErrorInternalServerError(""))?;
 
         // Generate thumbnail if the upload was an image.
+        // TODO: do this in the background instead of blocking the upload.
         let final_path = filename_path(final_filename, &opt)?;
         let final_thumb_path = thumbnail_filename_path(final_filename, &opt)?;
         generate_thumbnail(&final_path, &final_thumb_path, &opt)

@@ -1,3 +1,4 @@
+use actix_web::error::ErrorInternalServerError;
 use actix_web::{web, Error, HttpResponse, Responder};
 use askama_actix::{Template, TemplateToResponse};
 use chrono::offset::Local;
@@ -15,6 +16,7 @@ struct DirEntryModTimePair {
 }
 
 struct RecentEntry {
+    thumbnail_url: String,
     timestamp: String,
     url: String,
 }
@@ -28,6 +30,7 @@ struct RecentTemplate<'a> {
 fn build_recent_html_page(
     files: &[&DirEntryModTimePair],
     prefix_length: usize,
+    opt: &Opt,
 ) -> Result<HttpResponse, Error> {
     // Stringify DirEntryModTimePair
     // TODO: can we make some magic converter Trait to do this outside this function?
@@ -39,6 +42,8 @@ fn build_recent_html_page(
             recents.push(RecentEntry {
                 timestamp: datetime.format("%Y-%m-%d %T").to_string(),
                 url: path.to_string(),
+                thumbnail_url: super::thumbnail::get_thumbnail_url(path, opt)
+                    .map_err(|e| ErrorInternalServerError(e.to_string()))?,
             });
         }
     }
@@ -59,7 +64,7 @@ pub async fn recent(opt: web::Data<Opt>) -> Result<impl Responder, Error> {
     let n_of_recent_files = opt.recents;
     let latest_n_files: Vec<&DirEntryModTimePair> = files.iter().take(n_of_recent_files).collect();
 
-    build_recent_html_page(&latest_n_files, base_dir.to_string_lossy().len() + 1)
+    build_recent_html_page(&latest_n_files, base_dir.to_string_lossy().len() + 1, &opt)
     // + 1 for the dir separator
 }
 
@@ -71,7 +76,9 @@ fn visit_dirs(dir: &Path, files: &mut Vec<DirEntryModTimePair>) -> io::Result<()
             let dir_entry = entry?;
             let path = dir_entry.path();
             if path.is_dir() {
-                visit_dirs(&path, files)?
+                if !path.ends_with(crate::THUMBNAIL_SUBDIR) {
+                    visit_dirs(&path, files)?
+                }
             } else {
                 let mod_time = match dir_entry.metadata()?.modified() {
                     Ok(n) => n,

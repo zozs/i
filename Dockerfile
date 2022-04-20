@@ -1,5 +1,5 @@
 # building stage
-FROM rust:1.59 as builder
+FROM rust:1.60 as builder
 
 WORKDIR /usr/src/myapp
 COPY . .
