@@ -1,28 +1,20 @@
 # building stage
-FROM rust:1.55 as builder
+FROM rust:1.60 as builder
+
+RUN apt update && apt-get install -y musl-tools
+RUN rustup target add x86_64-unknown-linux-musl
 
 WORKDIR /usr/src/myapp
 COPY . .
-RUN cargo install --path .
+RUN cargo install --target=x86_64-unknown-linux-musl --path .
 
 # running stage
-FROM debian:buster-slim
+FROM gcr.io/distroless/static-debian11
 ARG APP=/usr/src/app
 
-RUN apt-get update \
-    && apt-get install -y ca-certificates tzdata \
-    && rm -rf /var/lib/apt/lists/*
+COPY --from=builder --chown=nonroot:nonroot /usr/local/cargo/bin/i ${APP}/i
 
-ENV APP_USER=appuser
-RUN groupadd $APP_USER \
-    && useradd -g $APP_USER $APP_USER \
-    && mkdir -p ${APP}
-
-COPY --from=builder /usr/local/cargo/bin/i ${APP}/i
-
-RUN chown -R $APP_USER:$APP_USER ${APP}
-
-USER $APP_USER
+USER nonroot:nonroot
 WORKDIR ${APP}
 
-CMD ["./i"]
+CMD ["/usr/src/app/i"]

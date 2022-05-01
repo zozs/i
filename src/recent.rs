@@ -1,5 +1,6 @@
+use actix_web::error::ErrorInternalServerError;
 use actix_web::{web, Error, HttpResponse, Responder};
-use askama_actix::{Template, TemplateIntoResponse};
+use askama_actix::{Template, TemplateToResponse};
 use chrono::offset::Local;
 use chrono::DateTime;
 use std::io;
@@ -15,6 +16,7 @@ struct DirEntryModTimePair {
 }
 
 struct RecentEntry {
+    thumbnail_url: String,
     timestamp: String,
     url: String,
 }
@@ -28,6 +30,7 @@ struct RecentTemplate<'a> {
 fn build_recent_html_page(
     files: &[&DirEntryModTimePair],
     prefix_length: usize,
+    opt: &Opt,
 ) -> Result<HttpResponse, Error> {
     // Stringify DirEntryModTimePair
     // TODO: can we make some magic converter Trait to do this outside this function?
@@ -39,19 +42,21 @@ fn build_recent_html_page(
             recents.push(RecentEntry {
                 timestamp: datetime.format("%Y-%m-%d %T").to_string(),
                 url: path.to_string(),
+                thumbnail_url: super::thumbnail::get_thumbnail_url(path, opt)
+                    .map_err(|e| ErrorInternalServerError(e.to_string()))?,
             });
         }
     }
 
     let template = RecentTemplate { recents: &recents };
-    template.into_response()
+    Ok(template.to_response())
 }
 
 pub async fn recent(opt: web::Data<Opt>) -> Result<impl Responder, Error> {
     let mut files = Vec::new();
 
-    let base_dir = get_base_dir(&opt)?.to_string();
-    visit_dirs(Path::new(&base_dir), &mut files)?;
+    let base_dir = get_base_dir(&opt)?;
+    visit_dirs(&base_dir, &mut files)?;
 
     // note the order of the partial_cmp
     files.sort_by(|a, b| b.mod_time.partial_cmp(&a.mod_time).unwrap());
@@ -59,7 +64,8 @@ pub async fn recent(opt: web::Data<Opt>) -> Result<impl Responder, Error> {
     let n_of_recent_files = opt.recents;
     let latest_n_files: Vec<&DirEntryModTimePair> = files.iter().take(n_of_recent_files).collect();
 
-    build_recent_html_page(&latest_n_files, base_dir.len() + 1) // + 1 for the dir separator
+    build_recent_html_page(&latest_n_files, base_dir.to_string_lossy().len() + 1, &opt)
+    // + 1 for the dir separator
 }
 
 // Inspired by first example here https://doc.rust-lang.org/std/fs/fn.read_dir.html
@@ -70,7 +76,9 @@ fn visit_dirs(dir: &Path, files: &mut Vec<DirEntryModTimePair>) -> io::Result<()
             let dir_entry = entry?;
             let path = dir_entry.path();
             if path.is_dir() {
-                visit_dirs(&path, files)?
+                if !path.ends_with(crate::THUMBNAIL_SUBDIR) {
+                    visit_dirs(&path, files)?
+                }
             } else {
                 let mod_time = match dir_entry.metadata()?.modified() {
                     Ok(n) => n,
