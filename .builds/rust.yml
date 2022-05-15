@@ -1,0 +1,13 @@
+image: alpine/edge
+packages:
+- rust
+- rustfmt
+sources:
+- https://git.sr.ht/~zozs/i
+tasks:
+- lint: |
+    cd i
+    cargo fmt -- --check
+- build: |
+    cd i
+    cargo build
