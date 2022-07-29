@@ -28,7 +28,7 @@ where
  * Returns relative url to thumbnail, or a placeholder image if it doesn't exist
  */
 pub fn get_thumbnail_url<P: AsRef<Path>>(path: P, opt: &Opt) -> Result<String> {
-    let thumbnail_path = super::get_thumbnail_dir(&opt)?.join(&path);
+    let thumbnail_path = super::get_thumbnail_dir(opt)?.join(&path);
     return if thumbnail_path.exists() {
         let url = std::path::Path::new(crate::THUMBNAIL_SUBDIR);
         url.join(&path)

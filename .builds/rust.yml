@@ -2,12 +2,14 @@ image: alpine/edge
 packages:
 - rust
 - rustfmt
+- rust-clippy
 sources:
 - https://git.sr.ht/~zozs/i
 tasks:
 - lint: |
     cd i
     cargo fmt -- --check
+    cargo clippy -- -D warnings
 - build: |
     cd i
     cargo build

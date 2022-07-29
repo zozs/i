@@ -22,6 +22,8 @@ jobs:
       run: cargo test --verbose
     - name: Run linter
       run: cargo fmt -- --check
+    - name: Run clippy linter
+      run: cargo clippy -- -D warnings
 
   docker:
     runs-on: ubuntu-latest

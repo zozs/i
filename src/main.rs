@@ -70,7 +70,7 @@ async fn placeholder_thumbnail() -> impl Responder {
         .body(placeholder)
 }
 
-fn get_base_dir<'a>(opt: &'a Opt) -> std::io::Result<PathBuf> {
+fn get_base_dir(opt: &Opt) -> std::io::Result<PathBuf> {
     // Create directory where files should be uploaded.
     let path = Path::new(&opt.base_dir);
     std::fs::create_dir_all(path)?;
