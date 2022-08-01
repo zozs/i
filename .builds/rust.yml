@@ -1,10 +1,18 @@
 image: alpine/edge
 packages:
+- docker
+- docker-cli-buildx
 - rust
 - rustfmt
 - rust-clippy
 sources:
 - https://git.sr.ht/~zozs/i
+secrets:
+- 16541680-f9eb-42c9-b14e-34cbef217bac # deploy key on github
+- 4f43c003-48b3-4b07-b644-828d212696ba # .ssh/known_hosts with github.com
+- a0ddbed4-a470-4e72-903d-4a82cece3c63 # ~/.docker-github-pat
+environment:
+  container_image: ghcr.io/zozs/i
 tasks:
 - lint: |
     cd i
@@ -13,3 +21,31 @@ tasks:
 - build: |
     cd i
     cargo build
+- mirror_github: |
+    # only mirror pushes to the repo, not e.g. patches to lists.sr.ht
+    # check by comparing HEAD to origin/main, if they match we go ahead
+    # and mirror to github, otherwise don't.
+    cd i
+    [ "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)" ] || complete-build
+    git remote add github git@github.com:zozs/i
+    git push github --follow-tags
+    sudo addgroup $USER docker
+- build_container: |
+    # for all pushes to main, we build a container image with tag "edge"
+    # later on, if this also happens to be a tag, we push tags matching the semver
+    # version as well.
+    sudo service docker start
+    cat ~/.docker-github-pat | docker login ghcr.io -u zozs --password-stdin
+    cd i
+    docker buildx build --load --tag "${container_image}:edge" .
+    docker push "${container_image}:edge"
+
+    # only do the following if this is a pushed tag
+    git describe --exact-match HEAD || complete-build
+    # derive additional tags here (several due to semver), and then push them.
+    curl -L https://git.sr.ht/~zozs/semver-container-tags/refs/download/v1.0.0/semver-container-tags-amd64 -o semver-container-tags
+    chmod +x semver-container-tags
+    for tag in $(../semver-container-tags/target/release/semver-container-tags "${container_image}" "$(git describe --exact-match HEAD)"); do
+      docker tag "${container_image}:edge" "$tag"
+      docker push "$tag"
+    done

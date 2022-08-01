@@ -94,7 +94,7 @@ fn auth_activated(opt: &Opt) -> bool {
 async fn auth_validator(
     req: ServiceRequest,
     credentials: BasicAuth,
-) -> Result<ServiceRequest, Error> {
+) -> Result<ServiceRequest, (Error, ServiceRequest)> {
     let opt: &Opt = req.app_data::<web::Data<Opt>>().unwrap();
 
     if let (Some(euser), Some(epass)) = (opt.auth_user.as_ref(), opt.auth_pass.as_ref()) {
@@ -104,7 +104,7 @@ async fn auth_validator(
             _ => {
                 let config: &Config = req.app_data::<web::Data<Config>>().unwrap();
                 let config: Config = config.clone();
-                Err(AuthenticationError::from(config).into())
+                Err((AuthenticationError::from(config).into(), req))
             }
         };
     }
