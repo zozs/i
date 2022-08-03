@@ -1,4 +1,4 @@
-image: alpine/edge
+image: alpine/latest
 packages:
 - docker
 - docker-cli-buildx
@@ -28,7 +28,7 @@ tasks:
     cd i
     [ "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)" ] || complete-build
     git remote add github git@github.com:zozs/i
-    git push github --follow-tags
+    git push github --follow-tags HEAD:main
     sudo addgroup $USER docker
 - build_container: |
     # for all pushes to main, we build a container image with tag "edge"
