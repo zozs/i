@@ -13,14 +13,18 @@ secrets:
 - a0ddbed4-a470-4e72-903d-4a82cece3c63 # ~/.docker-github-pat
 environment:
   container_image: ghcr.io/zozs/i
+  semver_container_tags_version: v1.0.0
 tasks:
 - lint: |
     cd i
     cargo fmt -- --check
     cargo clippy -- -D warnings
+    # prepare for build in next step
+    sudo service docker start
+    sudo addgroup $USER docker
 - build: |
     cd i
-    cargo build
+    docker buildx build --load --tag "${container_image}:edge" .
 - mirror_github: |
     # only mirror pushes to the repo, not e.g. patches to lists.sr.ht
     # check by comparing HEAD to origin/main, if they match we go ahead
@@ -29,23 +33,20 @@ tasks:
     [ "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)" ] || complete-build
     git remote add github git@github.com:zozs/i
     git push github --follow-tags HEAD:main
-    sudo addgroup $USER docker
 - build_container: |
     # for all pushes to main, we build a container image with tag "edge"
     # later on, if this also happens to be a tag, we push tags matching the semver
     # version as well.
-    sudo service docker start
     cat ~/.docker-github-pat | docker login ghcr.io -u zozs --password-stdin
     cd i
-    docker buildx build --load --tag "${container_image}:edge" .
     docker push "${container_image}:edge"
 
     # only do the following if this is a pushed tag
     git describe --exact-match HEAD || complete-build
     # derive additional tags here (several due to semver), and then push them.
-    curl -L https://git.sr.ht/~zozs/semver-container-tags/refs/download/v1.0.0/semver-container-tags-amd64 -o semver-container-tags
+    curl -L "https://git.sr.ht/~zozs/semver-container-tags/refs/download/${semver_container_tags_version}/semver-container-tags-amd64" -o semver-container-tags
     chmod +x semver-container-tags
-    for tag in $(../semver-container-tags/target/release/semver-container-tags "${container_image}" "$(git describe --exact-match HEAD)"); do
+    for tag in $(./semver-container-tags "${container_image}" "$(git describe --exact-match HEAD)"); do
       docker tag "${container_image}:edge" "$tag"
       docker push "$tag"
     done
