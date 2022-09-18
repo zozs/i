@@ -16,12 +16,13 @@ environment:
   semver_container_tags_version: v1.0.0
 tasks:
 - lint: |
+    # prepare for build in next step (docker may be slow to start)
+    sudo service docker start
+    sudo addgroup $USER docker
+    # actually lint
     cd i
     cargo fmt -- --check
     cargo clippy -- -D warnings
-    # prepare for build in next step
-    sudo service docker start
-    sudo addgroup $USER docker
 - build: |
     cd i
     docker buildx build --load --tag "${container_image}:edge" .
