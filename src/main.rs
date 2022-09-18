@@ -1,4 +1,4 @@
-use actix_web::dev::ServiceRequest;
+use actix_web::dev::{fn_service, ServiceRequest, ServiceResponse};
 use actix_web::web::Bytes;
 use actix_web::{middleware, web, App, Error, HttpResponse, HttpServer, Responder};
 use actix_web_httpauth::extractors::basic::{BasicAuth, Config};
@@ -61,6 +61,14 @@ async fn bulma() -> impl Responder {
 
 async fn index() -> impl Responder {
     HttpResponse::Ok().body("i API ready!")
+}
+
+async fn not_found(req: ServiceRequest) -> actix_web::Result<ServiceResponse> {
+    let (req, _) = req.into_parts();
+    let res = HttpResponse::Ok()
+        .content_type("text/plain")
+        .body("Not Found");
+    Ok(ServiceResponse::new(req, res))
 }
 
 async fn placeholder_thumbnail() -> impl Responder {
@@ -152,7 +160,7 @@ async fn main() -> std::io::Result<()> {
                 web::resource("/recent/placeholder.png")
                     .route(web::get().to(placeholder_thumbnail)),
             )
-            .service(actix_files::Files::new("/", &base_dir))
+            .service(actix_files::Files::new("/", &base_dir).default_handler(fn_service(not_found)))
     })
     .bind(bind_string)?
     .run()
