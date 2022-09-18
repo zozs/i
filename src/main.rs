@@ -65,7 +65,7 @@ async fn index() -> impl Responder {
 
 async fn not_found(req: ServiceRequest) -> actix_web::Result<ServiceResponse> {
     let (req, _) = req.into_parts();
-    let res = HttpResponse::Ok()
+    let res = HttpResponse::NotFound()
         .content_type("text/plain")
         .body("Not Found");
     Ok(ServiceResponse::new(req, res))
