@@ -4,8 +4,8 @@ use actix_web::{middleware, web, App, Error, HttpResponse, HttpServer, Responder
 use actix_web_httpauth::extractors::basic::{BasicAuth, Config};
 use actix_web_httpauth::extractors::AuthenticationError;
 use actix_web_httpauth::middleware::HttpAuthentication;
+use clap::StructOpt;
 use std::path::{Path, PathBuf};
-use structopt::StructOpt;
 
 mod recent;
 mod thumbnail;
@@ -15,7 +15,7 @@ mod upload;
 #[structopt(name = "i", about = "i is a simple file uploader web service.")]
 pub struct Opt {
     /// Port to listen on.
-    #[structopt(short = "P", long, default_value = "8088", env)]
+    #[structopt(short = 'P', long, default_value = "8088", env)]
     port: u16,
 
     /// The file system directory where uploaded files will be stored to, and served from.
@@ -27,19 +27,19 @@ pub struct Opt {
     server_url: String,
 
     /// Username for basic auth, if you want to require authentication to upload files
-    #[structopt(short = "u", long, env)]
+    #[structopt(short = 'u', long, env)]
     auth_user: Option<String>,
 
     /// Password for basic auth, if you want to require authentication to upload files
-    #[structopt(short = "p", long, env)]
+    #[structopt(short = 'p', long, env)]
     auth_pass: Option<String>,
 
     /// Number of entries to show in the list of recent uploads
-    #[structopt(short = "r", long, env, default_value = "15")]
+    #[structopt(short = 'r', long, env, default_value_t = 15)]
     recents: usize,
 
     /// Thumbnail size
-    #[structopt(short, long, env, default_value = "150")]
+    #[structopt(short, long, env, default_value_t = 150)]
     thumbnail_size: u32,
 
     /// Request logger format
