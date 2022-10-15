@@ -4,46 +4,46 @@ use actix_web::{middleware, web, App, Error, HttpResponse, HttpServer, Responder
 use actix_web_httpauth::extractors::basic::{BasicAuth, Config};
 use actix_web_httpauth::extractors::AuthenticationError;
 use actix_web_httpauth::middleware::HttpAuthentication;
-use clap::StructOpt;
+use clap::Parser;
 use std::path::{Path, PathBuf};
 
 mod recent;
 mod thumbnail;
 mod upload;
 
-#[derive(StructOpt, Clone, Debug)]
-#[structopt(name = "i", about = "i is a simple file uploader web service.")]
+#[derive(clap::Parser, Clone, Debug)]
+#[command(name = "i", about = "i is a simple file uploader web service.")]
 pub struct Opt {
     /// Port to listen on.
-    #[structopt(short = 'P', long, default_value = "8088", env)]
+    #[arg(short = 'P', long, default_value = "8088", env)]
     port: u16,
 
     /// The file system directory where uploaded files will be stored to, and served from.
-    #[structopt(short, long, env, default_value = "./tmp")]
+    #[arg(short, long, env, default_value = "./tmp")]
     base_dir: String,
 
     /// The complete server URL base which should be used when generating links.
-    #[structopt(short, long, env, default_value = "http://localhost:8088")]
+    #[arg(short, long, env, default_value = "http://localhost:8088")]
     server_url: String,
 
     /// Username for basic auth, if you want to require authentication to upload files
-    #[structopt(short = 'u', long, env)]
+    #[arg(short = 'u', long, env)]
     auth_user: Option<String>,
 
     /// Password for basic auth, if you want to require authentication to upload files
-    #[structopt(short = 'p', long, env)]
+    #[arg(short = 'p', long, env)]
     auth_pass: Option<String>,
 
     /// Number of entries to show in the list of recent uploads
-    #[structopt(short = 'r', long, env, default_value_t = 15)]
+    #[arg(short = 'r', long, env, default_value_t = 15)]
     recents: usize,
 
     /// Thumbnail size
-    #[structopt(short, long, env, default_value_t = 150)]
+    #[arg(short, long, env, default_value_t = 150)]
     thumbnail_size: u32,
 
     /// Request logger format
-    #[structopt(
+    #[arg(
         short,
         long,
         env,
@@ -121,7 +121,7 @@ async fn auth_validator(
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    let opt = Opt::from_args();
+    let opt = Opt::parse();
 
     env_logger::init();
 
