@@ -37,11 +37,11 @@ struct UploadResponse {
 }
 
 fn filename_path(filename: &str, opt: &Opt) -> Result<PathBuf, Error> {
-    Ok(get_base_dir(opt)?.join(sanitize_filename::sanitize(&filename)))
+    Ok(get_base_dir(opt)?.join(sanitize_filename::sanitize(filename)))
 }
 
 fn thumbnail_filename_path(filename: &str, opt: &Opt) -> Result<PathBuf, Error> {
-    Ok(get_thumbnail_dir(opt)?.join(sanitize_filename::sanitize(&filename)))
+    Ok(get_thumbnail_dir(opt)?.join(sanitize_filename::sanitize(filename)))
 }
 
 fn generate_random_filename(extension: Option<&str>) -> String {
@@ -111,7 +111,7 @@ pub async fn handle_upload(
         let final_filename: &str = if options.use_original_filename {
             // Rename from temporary random filename to original. Will overwrite if filename already exists.
             let original_filename_path = filename_path(&file.original_filename, &opt)?;
-            std::fs::rename(&file.random_filename_path, &original_filename_path)?;
+            std::fs::rename(&file.random_filename_path, original_filename_path)?;
             &file.original_filename
         } else {
             &file.random_filename
