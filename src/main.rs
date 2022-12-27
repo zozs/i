@@ -7,6 +7,8 @@ use actix_web_httpauth::middleware::HttpAuthentication;
 use clap::Parser;
 use std::path::{Path, PathBuf};
 
+mod delete;
+mod helpers;
 mod recent;
 mod thumbnail;
 mod upload;
@@ -95,7 +97,7 @@ fn get_thumbnail_dir(opt: &Opt) -> std::io::Result<PathBuf> {
     Ok(path)
 }
 
-fn auth_activated(opt: &Opt) -> bool {
+fn auth_active(opt: &Opt) -> bool {
     opt.auth_user.is_some() && opt.auth_pass.is_some()
 }
 
@@ -135,7 +137,6 @@ async fn main() -> std::io::Result<()> {
 
     HttpServer::new(move || {
         let auth = HttpAuthentication::basic(auth_validator);
-        let auth_recent = auth.clone();
 
         App::new()
             .wrap(middleware::Logger::new(&opt.logger_format))
@@ -143,16 +144,18 @@ async fn main() -> std::io::Result<()> {
             .app_data(web::Data::new(opt.clone()))
             .service(
                 web::resource("/")
-                    .wrap(middleware::Condition::new(auth_activated(&opt), auth))
+                    .wrap(middleware::Condition::new(auth_active(&opt), auth.clone()))
                     .route(web::get().to(index))
                     .route(web::post().to(upload::handle_upload)),
             )
             .service(
+                web::resource("/delete")
+                    .wrap(middleware::Condition::new(auth_active(&opt), auth.clone()))
+                    .route(web::post().to(delete::handle_delete)),
+            )
+            .service(
                 web::resource("/recent")
-                    .wrap(middleware::Condition::new(
-                        auth_activated(&opt),
-                        auth_recent,
-                    ))
+                    .wrap(middleware::Condition::new(auth_active(&opt), auth))
                     .route(web::get().to(recent::recent)),
             )
             .service(web::resource("/recent/bulma.min.css").route(web::get().to(bulma)))

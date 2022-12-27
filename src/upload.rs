@@ -9,7 +9,8 @@ use std::ffi::OsStr;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
-use super::{get_base_dir, get_thumbnail_dir, thumbnail::generate_thumbnail, Opt};
+use super::helpers::{filename_path, thumbnail_filename_path};
+use super::{thumbnail::generate_thumbnail, Opt};
 
 struct FileUpload {
     original_filename: String,
@@ -34,14 +35,6 @@ struct Options {
 #[serde(rename_all = "camelCase")]
 struct UploadResponse {
     url: String,
-}
-
-fn filename_path(filename: &str, opt: &Opt) -> Result<PathBuf, Error> {
-    Ok(get_base_dir(opt)?.join(sanitize_filename::sanitize(filename)))
-}
-
-fn thumbnail_filename_path(filename: &str, opt: &Opt) -> Result<PathBuf, Error> {
-    Ok(get_thumbnail_dir(opt)?.join(sanitize_filename::sanitize(filename)))
 }
 
 fn generate_random_filename(extension: Option<&str>) -> String {

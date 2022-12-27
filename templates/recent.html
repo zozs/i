@@ -20,6 +20,7 @@
           <tr>
             <th>Timestamp</th>
             <th>Filename</th>
+            <th></th>
           </tr>
         </thead>
         <tbody>
@@ -27,6 +28,12 @@
           <tr>
             <td>{{ recent.timestamp }}</td>
             <td><a href="{{ recent.url }}">{{ recent.url }}</a></td>
+            <td>
+              <form method="post" action="delete">
+                <input type="hidden" name="filename" value="{{ recent.url }}">
+                <input type="submit" value="Delete" class="button is-small is-danger is-light is-rounded">
+              </form>
+            </td>
           </tr>
           {% endfor %}
         </tbody>
