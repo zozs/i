@@ -4,6 +4,7 @@ use actix_web::{middleware, web, App, Error, HttpResponse, HttpServer, Responder
 use actix_web_httpauth::extractors::basic::{BasicAuth, Config};
 use actix_web_httpauth::extractors::AuthenticationError;
 use actix_web_httpauth::middleware::HttpAuthentication;
+use askama_actix::Template;
 use clap::Parser;
 use std::path::{Path, PathBuf};
 
@@ -56,6 +57,10 @@ pub struct Opt {
 
 pub const THUMBNAIL_SUBDIR: &str = "thumbnails";
 
+#[derive(Template)]
+#[template(path = "notfound.html")]
+struct NotFoundTemplate {}
+
 async fn bulma() -> impl Responder {
     let bulma = include_str!("../dist/bulma.min.css");
     HttpResponse::Ok().content_type("text/css").body(bulma)
@@ -66,10 +71,15 @@ async fn index() -> impl Responder {
 }
 
 async fn not_found(req: ServiceRequest) -> actix_web::Result<ServiceResponse> {
+    let template = NotFoundTemplate {};
+    let res = match template.render() {
+        Ok(rendered) => HttpResponse::NotFound()
+            .content_type(NotFoundTemplate::MIME_TYPE)
+            .body(rendered),
+        Err(_) => HttpResponse::InternalServerError().into(),
+    };
+
     let (req, _) = req.into_parts();
-    let res = HttpResponse::NotFound()
-        .content_type("text/plain")
-        .body("Not Found");
     Ok(ServiceResponse::new(req, res))
 }
 
