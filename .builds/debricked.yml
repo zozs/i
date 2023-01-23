@@ -1,0 +1,20 @@
+image: alpine/edge
+packages: []
+sources:
+- https://git.sr.ht/~zozs/i
+secrets:
+- ba9ec4f7-cd0b-4746-b03d-8203c6a4bf99 # debricked token ~/.debricked-token
+environment:
+  debricked_version: "0.0.5"
+tasks:
+- debricked: |
+    set +x
+    export DEBRICKED_TOKEN="$(cat ~/.debricked-token)"
+    set -x
+
+    # download debricked
+    curl -sLo- https://github.com/debricked/cli/releases/download/v${debricked_version}/cli_${debricked_version}_linux_x86_64.tar.gz | tar xzf - debricked
+
+    # run scan
+    cd i
+    ../debricked scan .
