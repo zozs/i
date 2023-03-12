@@ -21,6 +21,7 @@ tasks:
     sudo addgroup $USER docker
     # actually lint
     cd i
+    export CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse
     cargo fmt -- --check
     cargo clippy -- -D warnings
 - build: |

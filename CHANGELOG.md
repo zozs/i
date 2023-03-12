@@ -1,5 +1,10 @@
 # Changelog
 
+### 1.0.2
+
+* Upgrade dependencies
+* Build with Rust 1.68
+
 ### 1.0.1
 
 * Upgrade dependencies
