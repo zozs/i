@@ -1,5 +1,10 @@
 # Changelog
 
+### 1.0.3
+
+* No longer fail during delete if no thumbnail exists
+* Upgrade dependencies
+
 ### 1.0.2
 
 * Upgrade dependencies

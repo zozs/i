@@ -18,7 +18,7 @@ pub async fn handle_delete(
 
     // We should delete both file and thumbnail.
     std::fs::remove_file(filename_path(&form.filename, &opt)?)?;
-    std::fs::remove_file(thumbnail_filename_path(&form.filename, &opt)?)?;
+    std::fs::remove_file(thumbnail_filename_path(&form.filename, &opt)?).ok();
 
     let response = HttpResponse::SeeOther()
         .append_header(("Location", "recent"))
