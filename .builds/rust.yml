@@ -9,7 +9,7 @@ sources:
 - https://git.sr.ht/~zozs/i
 secrets:
 - 16541680-f9eb-42c9-b14e-34cbef217bac # deploy key on github
-- 4f43c003-48b3-4b07-b644-828d212696ba # .ssh/known_hosts with github.com
+- 3b94b715-7fe4-487d-bba8-7a4b5a9e3155 # .ssh/known_hosts with github.com (ed25519)
 - a0ddbed4-a470-4e72-903d-4a82cece3c63 # ~/.docker-github-pat
 environment:
   container_image: ghcr.io/zozs/i
