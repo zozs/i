@@ -13,7 +13,7 @@ tasks:
     set -x
 
     # download debricked
-    curl -sLo- https://github.com/debricked/cli/releases/download/v${debricked_version}/cli_linux_x86_64.tar.gz | tar -C /usr/local/bin -x -z -f - debricked
+    curl -sLo- https://github.com/debricked/cli/releases/download/v${debricked_version}/cli_linux_x86_64.tar.gz | sudo tar -C /usr/local/bin -x -z -f - debricked
 
     # run scan
     cd i

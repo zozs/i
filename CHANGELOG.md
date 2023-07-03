@@ -1,5 +1,10 @@
 # Changelog
 
+### 1.0.4
+
+* Add example script for Wayland screenshot upload
+* Upgrade dependencies
+
 ### 1.0.3
 
 * No longer fail during delete if no thumbnail exists
