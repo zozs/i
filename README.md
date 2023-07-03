@@ -32,6 +32,7 @@ Note that you need to modify the server URL in each script to point to your own 
 The following examples are included:
 
 * [screenshot-open.sh](client-side/screenshot-open.sh) Take a screenshot of a selected area of the screen, upload it, and open the resulting URL in the default browser.
+* [wayland-screenshot-open.sh](client-side/wayland-screenshot-open.sh) The same as above, but uses `grim` and `slurp` instead, and works well in a Wayland environment.
 * [screenshot.sh](client-side/screenshot.sh) Take a screenshot of a selected area of the screen, upload it, and copy the resulting URL to the clipboard.
 * [icp](client-side/icp) Upload a file from the terminal using `icp file.txt`, upload it, and open the resulting URL in the default browser.
 * [upload-with-i.desktop](client-side/upload-with-i.desktop) Copy file to `~/.local/share/file-manager/actions/` to add "Upload with i" entry to the context menu in your file manager. Needs to be modified with the correct path to `icp` above, on the `Exec` line.

@@ -1,6 +1,6 @@
 [package]
 name = "i"
-version = "1.0.3"
+version = "1.0.4"
 authors = ["Linus Karlsson <linus@zozs.se>"]
 edition = "2021"
 
