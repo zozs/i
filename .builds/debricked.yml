@@ -5,7 +5,7 @@ sources:
 secrets:
 - ba9ec4f7-cd0b-4746-b03d-8203c6a4bf99 # debricked token ~/.debricked-token
 environment:
-  debricked_version: "1.1.4"
+  debricked_version: "1.9.1"
 tasks:
 - debricked: |
     set +x
