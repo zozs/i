@@ -83,11 +83,25 @@ pub async fn handle_upload(
                     .await
                     .map_err(|_| ErrorInternalServerError("Could not upload file"))??;
                 // Field in turn is stream of *Bytes* object
+                let mut written_bytes = 0;
                 while let Some(chunk) = field.next().await {
                     let data = chunk.unwrap();
+                    written_bytes += data.len();
                     // filesystem operations are blocking, we have to use threadpool
                     f = web::block(move || f.write_all(&data).map(|_| f)).await??;
                 }
+
+                // If uploaded file had a length of zero, delete the (zero length) file, return error
+                // and delete temporary (empty) file.
+                if written_bytes == 0 {
+                    log::info!(
+                        "tried to upload empty file {}, aborting.",
+                        random_filename_path.display()
+                    );
+                    std::fs::remove_file(random_filename_path)?;
+                    return Ok(HttpResponse::BadRequest().into());
+                }
+
                 file_field = Some(FileUpload {
                     original_filename,
                     random_filename,

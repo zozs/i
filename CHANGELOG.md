@@ -1,5 +1,9 @@
 # Changelog
 
+### 1.1.0
+
+* Prevent empty (zero-length) uploads by returning 400 Bad Request
+
 ### 1.0.6
 
 * Upgrade dependencies
