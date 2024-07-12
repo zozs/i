@@ -69,10 +69,10 @@ pub async fn handle_upload(
     while let Ok(Some(mut field)) = payload.try_next().await {
         let content_disposition = field.content_disposition();
         // Check if it is file or data part of form.
-        match content_disposition.get_name() {
-            Some("file") => {
+        match content_disposition {
+            Some(cd) if cd.get_name() == Some("file") => {
                 // Save to temporary filename, we might later rename it to original.
-                let original_filename = content_disposition.get_filename().unwrap().to_string();
+                let original_filename = cd.get_filename().unwrap().to_string();
                 let extension = get_extension_from_filename(&original_filename);
                 let random_filename = generate_random_filename(extension);
 
@@ -94,7 +94,9 @@ pub async fn handle_upload(
                     random_filename_path,
                 });
             }
-            Some("options") => options_field = parse_field_options(field).await.ok(),
+            Some(cd) if cd.get_name() == Some("options") => {
+                options_field = parse_field_options(field).await.ok()
+            }
             _ => { /* TODO: show error or something */ }
         }
     }
