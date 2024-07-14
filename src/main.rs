@@ -1,12 +1,25 @@
-use actix_web::dev::{fn_service, ServiceRequest, ServiceResponse};
-use actix_web::web::Bytes;
-use actix_web::{middleware, web, App, Error, HttpResponse, HttpServer, Responder};
-use actix_web_httpauth::extractors::basic::{BasicAuth, Config};
-use actix_web_httpauth::extractors::AuthenticationError;
-use actix_web_httpauth::middleware::HttpAuthentication;
-use askama_actix::Template;
+use askama_axum::Template;
+use axum::{
+    extract::{Request, State},
+    handler::HandlerWithoutStateExt,
+    http::{
+        header::{CONTENT_TYPE, WWW_AUTHENTICATE},
+        StatusCode,
+    },
+    middleware,
+    response::{IntoResponse, Response},
+    routing::{get, post},
+    Router,
+};
+use axum_extra::{
+    headers::{authorization::Basic, Authorization},
+    TypedHeader,
+};
 use clap::Parser;
+use image::ImageError;
 use std::path::{Path, PathBuf};
+use tokio::task::JoinError;
+use tower_http::services::ServeDir;
 
 mod delete;
 mod helpers;
@@ -57,37 +70,69 @@ pub struct Opt {
 
 pub const THUMBNAIL_SUBDIR: &str = "thumbnails";
 
+#[derive(Debug, thiserror::Error)]
+pub enum WebError {
+    #[error("authentication failed")]
+    AuthenticationFailed,
+    #[error("tried to upload empty file")]
+    EmptyUpload,
+    #[error("i/o error: {0}")]
+    IoError(#[from] std::io::Error),
+    #[error("thread pool error: {0}")]
+    ThreadPoolError(#[from] JoinError),
+    #[error("invalid url")]
+    InvalidUrl(#[from] url::ParseError),
+    #[error("bad request")]
+    BadRequest,
+    #[error("image error")]
+    InvalidImage(#[from] ImageError),
+}
+
+impl axum::response::IntoResponse for WebError {
+    fn into_response(self) -> Response {
+        match self {
+            WebError::AuthenticationFailed => (
+                StatusCode::UNAUTHORIZED,
+                [(WWW_AUTHENTICATE, "Basic realm=\"i: file upload\"")],
+                "unauthorized",
+            )
+                .into_response(),
+            WebError::EmptyUpload => (StatusCode::BAD_REQUEST, self.to_string()).into_response(),
+            WebError::IoError(_) => {
+                (StatusCode::INTERNAL_SERVER_ERROR, "i/o error").into_response()
+            }
+            WebError::ThreadPoolError(_) => {
+                (StatusCode::INTERNAL_SERVER_ERROR, "internal error").into_response()
+            }
+            WebError::InvalidUrl(_) => {
+                (StatusCode::INTERNAL_SERVER_ERROR, "invalid url").into_response()
+            }
+            WebError::BadRequest => (StatusCode::BAD_REQUEST, "bad request").into_response(),
+            WebError::InvalidImage(_) => (StatusCode::BAD_REQUEST, "invalid image").into_response(),
+        }
+    }
+}
+
 #[derive(Template)]
 #[template(path = "notfound.html")]
 struct NotFoundTemplate {}
 
-async fn bulma() -> impl Responder {
-    let bulma = include_str!("../dist/bulma.min.css");
-    HttpResponse::Ok().content_type("text/css").body(bulma)
+async fn bulma() -> impl IntoResponse {
+    let placeholder = include_bytes!("../dist/bulma.min.css");
+    ([(CONTENT_TYPE, "text/css")], placeholder)
 }
 
-async fn index() -> impl Responder {
-    HttpResponse::Ok().body("i API ready!")
+async fn index() -> impl IntoResponse {
+    "i API ready!"
 }
 
-async fn not_found(req: ServiceRequest) -> actix_web::Result<ServiceResponse> {
-    let template = NotFoundTemplate {};
-    let res = match template.render() {
-        Ok(rendered) => HttpResponse::NotFound()
-            .content_type(NotFoundTemplate::MIME_TYPE)
-            .body(rendered),
-        Err(_) => HttpResponse::InternalServerError().into(),
-    };
-
-    let (req, _) = req.into_parts();
-    Ok(ServiceResponse::new(req, res))
+async fn handle_404() -> impl IntoResponse {
+    (StatusCode::NOT_FOUND, NotFoundTemplate {})
 }
 
-async fn placeholder_thumbnail() -> impl Responder {
-    let placeholder = Bytes::from_static(include_bytes!("../dist/placeholder.png"));
-    HttpResponse::Ok()
-        .content_type("image/png")
-        .body(placeholder)
+async fn placeholder_thumbnail() -> impl IntoResponse {
+    let placeholder = include_bytes!("../dist/placeholder.png");
+    ([(CONTENT_TYPE, "image/png")], placeholder)
 }
 
 fn get_base_dir(opt: &Opt) -> std::io::Result<PathBuf> {
@@ -107,31 +152,28 @@ fn get_thumbnail_dir(opt: &Opt) -> std::io::Result<PathBuf> {
     Ok(path)
 }
 
-fn auth_active(opt: &Opt) -> bool {
-    opt.auth_user.is_some() && opt.auth_pass.is_some()
-}
-
 async fn auth_validator(
-    req: ServiceRequest,
-    credentials: BasicAuth,
-) -> Result<ServiceRequest, (Error, ServiceRequest)> {
-    let opt: &Opt = req.app_data::<web::Data<Opt>>().unwrap();
-
+    State(opt): State<Opt>,
+    creds: Option<TypedHeader<Authorization<Basic>>>,
+    request: Request,
+    next: middleware::Next,
+) -> Result<Response, WebError> {
     if let (Some(euser), Some(epass)) = (opt.auth_user.as_ref(), opt.auth_pass.as_ref()) {
         // Since both user and pass are given, we now require authentication. Check that they match.
-        return match (credentials.user_id(), credentials.password()) {
-            (auser, Some(apass)) if auser == euser && apass == epass => Ok(req), // success!
-            _ => {
-                let config: &Config = req.app_data::<web::Data<Config>>().unwrap();
-                let config: Config = config.clone();
-                Err((AuthenticationError::from(config).into(), req))
+        if let Some(TypedHeader(Authorization(creds))) = creds {
+            match (creds.username(), creds.password()) {
+                (auser, apass) if auser == euser && apass == epass => Ok(next.run(request).await),
+                _ => Err(WebError::AuthenticationFailed),
             }
-        };
+        } else {
+            Err(WebError::AuthenticationFailed)
+        }
+    } else {
+        Ok(next.run(request).await)
     }
-    Ok(req)
 }
 
-#[actix_web::main]
+#[tokio::main]
 async fn main() -> std::io::Result<()> {
     let opt = Opt::parse();
 
@@ -145,37 +187,20 @@ async fn main() -> std::io::Result<()> {
     log::info!("listening on {}", bind_string);
     log::info!("serving and storing files in: {:?}", base_dir);
 
-    HttpServer::new(move || {
-        let auth = HttpAuthentication::basic(auth_validator);
+    let serve_dir = ServeDir::new(&base_dir).not_found_service(handle_404.into_service());
 
-        App::new()
-            .wrap(middleware::Logger::new(&opt.logger_format))
-            .app_data(web::Data::new(Config::default().realm("i: file upload")))
-            .app_data(web::Data::new(opt.clone()))
-            .service(
-                web::resource("/")
-                    .wrap(middleware::Condition::new(auth_active(&opt), auth.clone()))
-                    .route(web::get().to(index))
-                    .route(web::post().to(upload::handle_upload)),
-            )
-            .service(
-                web::resource("/delete")
-                    .wrap(middleware::Condition::new(auth_active(&opt), auth.clone()))
-                    .route(web::post().to(delete::handle_delete)),
-            )
-            .service(
-                web::resource("/recent")
-                    .wrap(middleware::Condition::new(auth_active(&opt), auth))
-                    .route(web::get().to(recent::recent)),
-            )
-            .service(web::resource("/recent/bulma.min.css").route(web::get().to(bulma)))
-            .service(
-                web::resource("/recent/placeholder.png")
-                    .route(web::get().to(placeholder_thumbnail)),
-            )
-            .service(actix_files::Files::new("/", &base_dir).default_handler(fn_service(not_found)))
-    })
-    .bind(bind_string)?
-    .run()
-    .await
+    // TODO: fix logger
+    let app = Router::new()
+        .route("/", get(index))
+        .route("/", post(upload::handle_upload))
+        .route("/delete", post(delete::handle_delete))
+        .route("/recent", get(recent::recent))
+        .route_layer(middleware::from_fn_with_state(opt.clone(), auth_validator)) // every route above covered by auth
+        .route("/recent/bulma.min.css", get(bulma))
+        .route("/recent/placeholder.png", get(placeholder_thumbnail))
+        .fallback_service(serve_dir)
+        .with_state(opt);
+
+    let listener = tokio::net::TcpListener::bind(bind_string).await.unwrap();
+    axum::serve(listener, app).await
 }

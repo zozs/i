@@ -1,5 +1,12 @@
-use actix_web::{web, Error, HttpResponse};
+use axum::{
+    extract::State,
+    http::{header::LOCATION, StatusCode},
+    response::IntoResponse,
+    Form,
+};
 use serde::Deserialize;
+
+use crate::WebError;
 
 use super::{helpers::filename_path, helpers::thumbnail_filename_path, Opt};
 
@@ -9,20 +16,16 @@ pub struct DeleteRequest {
 }
 
 pub async fn handle_delete(
-    form: web::Form<DeleteRequest>,
-    opt: web::Data<Opt>,
-) -> Result<HttpResponse, Error> {
+    State(opt): State<Opt>,
+    Form(form): Form<DeleteRequest>,
+) -> Result<impl IntoResponse, WebError> {
     if !sanitize_filename::is_sanitized(&form.filename) {
-        return Ok(HttpResponse::BadRequest().into());
+        return Err(WebError::BadRequest);
     }
 
     // We should delete both file and thumbnail.
     std::fs::remove_file(filename_path(&form.filename, &opt)?)?;
     std::fs::remove_file(thumbnail_filename_path(&form.filename, &opt)?).ok();
 
-    let response = HttpResponse::SeeOther()
-        .append_header(("Location", "recent"))
-        .body("deleted");
-
-    Ok(response)
+    Ok((StatusCode::SEE_OTHER, [(LOCATION, "recent")], "deleted"))
 }
