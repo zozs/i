@@ -79,5 +79,6 @@ See `i --help` for details.
 * `SERVER_URL`: Set to the complete server URL base which should be used when generating links. Default: `http://localhost:8088`.
 * `PORT`: Which port `i` should listen to. Default `8088`.
 * `RECENTS`: How many entries to show in the list of recent uploads at the `/recent` endpoint (default: 15)
-* `LOGGER_FORMAT`: The format to use for [actix_web Logger middleware](https://actix.rs/actix-web/actix_web/middleware/struct.Logger.html). Default is the same as `Logger::default()`. See link for logging format.
 * `THUMBNAIL_SIZE`: The width and height in pixels for the generated thumbnails (default: 150)
+
+Set `RUST_LOG` to a valid [EnvFilter](https://docs.rs/tracing-subscriber/latest/tracing_subscriber/filter/struct.EnvFilter.html) string to customize tracing. Example `RUST_LOG="i=info,[request]=debug"` to log requests too.

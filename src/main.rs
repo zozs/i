@@ -17,9 +17,15 @@ use axum_extra::{
 };
 use clap::Parser;
 use image::ImageError;
-use std::path::{Path, PathBuf};
+use std::{
+    path::{Path, PathBuf},
+};
 use tokio::task::JoinError;
-use tower_http::services::ServeDir;
+use tower_http::{
+    services::ServeDir,
+    trace::{DefaultMakeSpan, TraceLayer},
+};
+use tracing_subscriber::EnvFilter;
 
 mod delete;
 mod helpers;
@@ -57,15 +63,6 @@ pub struct Opt {
     /// Thumbnail size
     #[arg(short, long, env, default_value_t = 150)]
     thumbnail_size: u32,
-
-    /// Request logger format
-    #[arg(
-        short,
-        long,
-        env,
-        default_value = r#"%a "%r" %s %b "%{Referer}i" "%{User-Agent}i" %T""#
-    )]
-    logger_format: String,
 }
 
 pub const THUMBNAIL_SUBDIR: &str = "thumbnails";
@@ -174,10 +171,17 @@ async fn auth_validator(
 }
 
 #[tokio::main]
-async fn main() -> std::io::Result<()> {
+async fn main() -> Result<(), WebError> {
     let opt = Opt::parse();
 
-    env_logger::init();
+    // Configure tracing
+    let default = "i=info".parse().unwrap();
+    let filter = EnvFilter::builder()
+        .with_default_directive(default)
+        .from_env_lossy();
+    tracing_subscriber::fmt().with_env_filter(filter).init();
+    let tracing_layer =
+        TraceLayer::new_for_http().make_span_with(DefaultMakeSpan::new().include_headers(true));
 
     let host = "0.0.0.0";
     let bind_string = format!("{}:{}", host, opt.port);
@@ -189,7 +193,6 @@ async fn main() -> std::io::Result<()> {
 
     let serve_dir = ServeDir::new(&base_dir).not_found_service(handle_404.into_service());
 
-    // TODO: fix logger
     let app = Router::new()
         .route("/", get(index))
         .route("/", post(upload::handle_upload))
@@ -199,8 +202,9 @@ async fn main() -> std::io::Result<()> {
         .route("/recent/bulma.min.css", get(bulma))
         .route("/recent/placeholder.png", get(placeholder_thumbnail))
         .fallback_service(serve_dir)
-        .with_state(opt);
+        .with_state(opt)
+        .layer(tracing_layer);
 
     let listener = tokio::net::TcpListener::bind(bind_string).await.unwrap();
-    axum::serve(listener, app).await
+    Ok(axum::serve(listener, app).await?)
 }
