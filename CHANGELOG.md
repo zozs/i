@@ -1,5 +1,15 @@
 # Changelog
 
+### 2.0.0
+
+**Breaking changes**
+* Logging is now done by using `tracing` instead, the old `--logger-format / -l` flag is now removed.
+
+Other changes
+
+* Move from actix-web to axum as web framework
+* Better error handling
+
 ### 1.1.0
 
 * Prevent empty (zero-length) uploads by returning 400 Bad Request

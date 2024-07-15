@@ -17,9 +17,7 @@ use axum_extra::{
 };
 use clap::Parser;
 use image::ImageError;
-use std::{
-    path::{Path, PathBuf},
-};
+use std::path::{Path, PathBuf};
 use tokio::task::JoinError;
 use tower_http::{
     services::ServeDir,
