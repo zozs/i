@@ -1,12 +1,13 @@
-use anyhow::{anyhow, Result};
 use std::path::Path;
+
+use crate::WebError;
 
 use super::Opt;
 
 /**
  * Tries to generate a thumbnail of the given filename. Returns false if it wasn't an image.
  */
-pub fn generate_thumbnail<P>(path: P, thumb_path: P, opt: &Opt) -> Result<bool>
+pub fn generate_thumbnail<P>(path: P, thumb_path: P, opt: &Opt) -> Result<bool, WebError>
 where
     P: AsRef<Path>,
 {
@@ -27,14 +28,15 @@ where
 /**
  * Returns relative url to thumbnail, or a placeholder image if it doesn't exist
  */
-pub fn get_thumbnail_url<P: AsRef<Path>>(path: P, opt: &Opt) -> Result<String> {
+pub fn get_thumbnail_url<P: AsRef<Path>>(path: P, opt: &Opt) -> Result<String, WebError> {
     let thumbnail_path = super::get_thumbnail_dir(opt)?.join(&path);
     return if thumbnail_path.exists() {
         let url = std::path::Path::new(crate::THUMBNAIL_SUBDIR);
-        url.join(&path)
+        Ok(url
+            .join(&path)
             .into_os_string()
             .into_string()
-            .map_err(|e| anyhow!("path error {:?}", e))
+            .map_err(|_| std::io::Error::new(std::io::ErrorKind::Other, "invalid path"))?)
     } else {
         Ok("/recent/placeholder.png".to_string())
     };

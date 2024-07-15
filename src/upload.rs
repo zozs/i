@@ -1,13 +1,18 @@
-use actix_multipart::Multipart;
-use actix_web::error::ErrorInternalServerError;
-use actix_web::{web, Error, HttpResponse};
-use futures::{StreamExt, TryStreamExt};
+use askama_axum::IntoResponse;
+use axum::extract::multipart::Field;
+use axum::extract::{Multipart, State};
+use axum::http::header::LOCATION;
+use axum::http::{HeaderMap, StatusCode};
+use axum::Json;
+use futures::StreamExt;
 use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
 use serde::{Deserialize, Serialize};
 use std::ffi::OsStr;
 use std::io::Write;
 use std::path::{Path, PathBuf};
+
+use crate::WebError;
 
 use super::helpers::{filename_path, thumbnail_filename_path};
 use super::{thumbnail::generate_thumbnail, Opt};
@@ -55,9 +60,9 @@ fn get_extension_from_filename(filename: &str) -> Option<&str> {
 }
 
 pub async fn handle_upload(
+    State(opt): State<Opt>,
     mut payload: Multipart,
-    opt: web::Data<Opt>,
-) -> Result<HttpResponse, Error> {
+) -> Result<impl IntoResponse, WebError> {
     let mut file_field: Option<FileUpload> = None;
     // Use default options field if we don't wish to include it.
     let mut options_field: Option<Options> = Some(Options {
@@ -66,29 +71,27 @@ pub async fn handle_upload(
     });
 
     // iterate over multipart stream
-    while let Ok(Some(mut field)) = payload.try_next().await {
-        let content_disposition = field.content_disposition();
-        // Check if it is file or data part of form.
-        match content_disposition {
-            Some(cd) if cd.get_name() == Some("file") => {
+    while let Ok(Some(mut field)) = payload.next_field().await {
+        match field.name() {
+            Some("file") => {
                 // Save to temporary filename, we might later rename it to original.
-                let original_filename = cd.get_filename().unwrap().to_string();
+                let original_filename = field.file_name().unwrap().to_string();
                 let extension = get_extension_from_filename(&original_filename);
                 let random_filename = generate_random_filename(extension);
 
                 let filepath = filename_path(&random_filename, &opt)?;
                 let random_filename_path = filepath.clone();
                 // File::create is blocking operation, use threadpool
-                let mut f = web::block(|| std::fs::File::create(filepath))
-                    .await
-                    .map_err(|_| ErrorInternalServerError("Could not upload file"))??;
+                let mut f =
+                    tokio::task::spawn_blocking(|| std::fs::File::create(filepath)).await??;
                 // Field in turn is stream of *Bytes* object
                 let mut written_bytes = 0;
                 while let Some(chunk) = field.next().await {
                     let data = chunk.unwrap();
                     written_bytes += data.len();
                     // filesystem operations are blocking, we have to use threadpool
-                    f = web::block(move || f.write_all(&data).map(|_| f)).await??;
+                    f = tokio::task::spawn_blocking(move || f.write_all(&data).map(|_| f))
+                        .await??;
                 }
 
                 // If uploaded file had a length of zero, delete the (zero length) file, return error
@@ -99,7 +102,7 @@ pub async fn handle_upload(
                         random_filename_path.display()
                     );
                     std::fs::remove_file(random_filename_path)?;
-                    return Ok(HttpResponse::BadRequest().into());
+                    return Err(WebError::EmptyUpload);
                 }
 
                 file_field = Some(FileUpload {
@@ -108,9 +111,7 @@ pub async fn handle_upload(
                     random_filename_path,
                 });
             }
-            Some(cd) if cd.get_name() == Some("options") => {
-                options_field = parse_field_options(field).await.ok()
-            }
+            Some("options") => options_field = parse_field_options(field).await.ok(),
             _ => { /* TODO: show error or something */ }
         }
     }
@@ -127,42 +128,39 @@ pub async fn handle_upload(
         };
 
         // Derive url of newly created file.
-        let url = public_path(final_filename, &opt).map_err(|_| ErrorInternalServerError(""))?;
+        let url = public_path(final_filename, &opt)?;
 
         // Generate thumbnail if the upload was an image.
         let final_path = filename_path(final_filename, &opt)?;
         let final_thumb_path = thumbnail_filename_path(final_filename, &opt)?;
-        actix_web::rt::spawn(async move {
+        tokio::task::spawn(async move {
+            // TODO: replace with some mpsc channel for thumbnails
             let _ = generate_thumbnail(&final_path, &final_thumb_path, &opt)
                 .map_err(|e| println!("Error when generating thumbnail: {}", e));
         });
 
-        let response = if options.redirect {
-            HttpResponse::SeeOther()
-                .append_header(("Location", url.as_str()))
-                .json(UploadResponse { url })
+        let (status, headers) = if options.redirect {
+            (
+                StatusCode::SEE_OTHER,
+                [(LOCATION, url.parse().unwrap())].into_iter().collect(),
+            )
         } else {
-            HttpResponse::Ok().json(UploadResponse { url })
+            (StatusCode::OK, HeaderMap::new())
         };
 
-        Ok(response)
+        Ok((status, headers, Json(UploadResponse { url })))
     } else {
-        Ok(HttpResponse::BadRequest().into())
+        Err(WebError::BadRequest)
     }
 }
 
-async fn parse_field_options(mut field: actix_multipart::Field) -> Result<Options, Error> {
+async fn parse_field_options(field: Field<'_>) -> Result<Options, WebError> {
     // Parse data in options json.
 
     // First read multipart data to Vec<u8>.
-    let mut v: Vec<u8> = Vec::new();
-    while let Some(chunk) = field.next().await {
-        let data = chunk.unwrap();
-        // filesystem operations are blocking, we have to use threadpool
-        v = web::block(move || v.write_all(&data).map(|_| v)).await??;
-    }
+    let v = field.bytes().await.map_err(|_| WebError::BadRequest)?;
 
-    Ok(serde_json::from_slice(&v)?)
+    serde_json::from_slice(&v).map_err(|_| WebError::BadRequest)
 }
 
 fn public_path(filename: &str, opt: &Opt) -> Result<String, url::ParseError> {
