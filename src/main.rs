@@ -219,7 +219,6 @@ async fn main() -> Result<(), WebError> {
 
 #[cfg(test)]
 mod tests {
-    
 
     use super::*;
     use axum::{
@@ -228,7 +227,7 @@ mod tests {
     };
     use http_body_util::BodyExt; // for `collect`
     use serde_json::Value;
-    
+
     use tower::ServiceExt; // for `call`, `oneshot`, and `ready`
 
     fn make_test_opt() -> Opt {
