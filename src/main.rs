@@ -1,6 +1,6 @@
 use askama_axum::Template;
 use axum::{
-    extract::{Request, State},
+    extract::{DefaultBodyLimit, Request, State},
     handler::HandlerWithoutStateExt,
     http::{
         header::{CONTENT_TYPE, WWW_AUTHENTICATE},
@@ -61,6 +61,10 @@ pub struct Opt {
     /// Thumbnail size
     #[arg(short, long, env, default_value_t = 150)]
     thumbnail_size: u32,
+
+    /// Maximum upload size in bytes (default 2 GiB)
+    #[arg(short, long, env, default_value_t = 2_147_483_648)]
+    max_upload_size: usize,
 }
 
 pub const THUMBNAIL_SUBDIR: &str = "thumbnails";
@@ -168,6 +172,26 @@ async fn auth_validator(
     }
 }
 
+fn router(base_dir: PathBuf, opt: Opt) -> Router {
+    let max_upload = opt.max_upload_size;
+    let serve_dir = ServeDir::new(&base_dir).not_found_service(handle_404.into_service());
+    let tracing_layer =
+        TraceLayer::new_for_http().make_span_with(DefaultMakeSpan::new().include_headers(true));
+
+    Router::new()
+        .route("/", get(index))
+        .route("/", post(upload::handle_upload))
+        .route("/delete", post(delete::handle_delete))
+        .route("/recent", get(recent::recent))
+        .route_layer(middleware::from_fn_with_state(opt.clone(), auth_validator)) // every route above covered by auth
+        .route("/recent/bulma.min.css", get(bulma))
+        .route("/recent/placeholder.png", get(placeholder_thumbnail))
+        .fallback_service(serve_dir)
+        .with_state(opt)
+        .layer(tracing_layer)
+        .layer(DefaultBodyLimit::max(max_upload))
+}
+
 #[tokio::main]
 async fn main() -> Result<(), WebError> {
     let opt = Opt::parse();
@@ -178,8 +202,6 @@ async fn main() -> Result<(), WebError> {
         .with_default_directive(default)
         .from_env_lossy();
     tracing_subscriber::fmt().with_env_filter(filter).init();
-    let tracing_layer =
-        TraceLayer::new_for_http().make_span_with(DefaultMakeSpan::new().include_headers(true));
 
     let host = "0.0.0.0";
     let bind_string = format!("{}:{}", host, opt.port);
@@ -189,20 +211,216 @@ async fn main() -> Result<(), WebError> {
     log::info!("listening on {}", bind_string);
     log::info!("serving and storing files in: {:?}", base_dir);
 
-    let serve_dir = ServeDir::new(&base_dir).not_found_service(handle_404.into_service());
-
-    let app = Router::new()
-        .route("/", get(index))
-        .route("/", post(upload::handle_upload))
-        .route("/delete", post(delete::handle_delete))
-        .route("/recent", get(recent::recent))
-        .route_layer(middleware::from_fn_with_state(opt.clone(), auth_validator)) // every route above covered by auth
-        .route("/recent/bulma.min.css", get(bulma))
-        .route("/recent/placeholder.png", get(placeholder_thumbnail))
-        .fallback_service(serve_dir)
-        .with_state(opt)
-        .layer(tracing_layer);
+    let app = router(base_dir, opt);
 
     let listener = tokio::net::TcpListener::bind(bind_string).await.unwrap();
     Ok(axum::serve(listener, app).await?)
+}
+
+#[cfg(test)]
+mod tests {
+    
+
+    use super::*;
+    use axum::{
+        body::Body,
+        http::{header::LOCATION, Request, StatusCode},
+    };
+    use http_body_util::BodyExt; // for `collect`
+    use serde_json::Value;
+    
+    use tower::ServiceExt; // for `call`, `oneshot`, and `ready`
+
+    fn make_test_opt() -> Opt {
+        Opt {
+            port: 1337,
+            base_dir: "/tmp".into(),
+            server_url: "http://test.example.com".into(),
+            auth_user: None,
+            auth_pass: None,
+            recents: 1,
+            thumbnail_size: 150,
+            max_upload_size: 30 * 1024 * 1024,
+        }
+    }
+
+    #[tokio::test]
+    async fn hello_world() {
+        let opt = make_test_opt();
+        let app = router("/tmp".into(), opt);
+
+        let response = app
+            .oneshot(Request::builder().uri("/").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let body = response.into_body().collect().await.unwrap().to_bytes();
+        assert_eq!(&body[..], b"i API ready!");
+    }
+
+    #[tokio::test]
+    async fn post_small_file() {
+        let opt = make_test_opt();
+        let app = router("/tmp".into(), opt);
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/")
+                    .method("POST")
+                    .header(
+                        axum::http::header::CONTENT_TYPE,
+                        "multipart/form-data; boundary=boundary",
+                    )
+                    .body(
+                        r#"--boundary
+Content-Disposition: form-data; name="file"; filename="original.txt"
+Content-Type: text/plain
+
+hellu this is a cute little file UwU
+
+--boundary--
+"#
+                        .replace('\n', "\r\n"),
+                    )
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::SEE_OTHER);
+        assert!(response.headers().get(LOCATION).is_some());
+
+        let body = response.into_body().collect().await.unwrap().to_bytes();
+        let body: Value = serde_json::from_slice(&body).unwrap();
+        assert!(body.get("url").is_some())
+    }
+
+    #[tokio::test]
+    async fn post_small_file_original() {
+        let opt = make_test_opt();
+        let app = router("/tmp".into(), opt);
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/")
+                    .method("POST")
+                    .header(
+                        axum::http::header::CONTENT_TYPE,
+                        "multipart/form-data; boundary=boundary",
+                    )
+                    .body(
+                        r#"--boundary
+Content-Disposition: form-data; name="file"; filename="original.txt"
+Content-Type: text/plain
+
+hellu this is a cute little file UwU
+
+--boundary
+Content-Disposition: form-data; name="options"
+
+{"useOriginalFilename":true}
+--boundary--
+"#
+                        .replace('\n', "\r\n"),
+                    )
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::SEE_OTHER);
+
+        let body = response.into_body().collect().await.unwrap().to_bytes();
+        let body: Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(
+            Some("http://test.example.com/original.txt"),
+            body.get("url").map(|v| v.as_str().unwrap())
+        );
+    }
+
+    #[tokio::test]
+    async fn post_small_file_no_redirect() {
+        let opt = make_test_opt();
+        let app = router("/tmp".into(), opt);
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/")
+                    .method("POST")
+                    .header(
+                        axum::http::header::CONTENT_TYPE,
+                        "multipart/form-data; boundary=boundary",
+                    )
+                    .body(
+                        r#"--boundary
+Content-Disposition: form-data; name="file"; filename="original.txt"
+Content-Type: text/plain
+
+hellu this is a cute little file UwU
+
+--boundary
+Content-Disposition: form-data; name="options"
+
+{"redirect":false}
+--boundary--
+"#
+                        .replace('\n', "\r\n"),
+                    )
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        assert!(response.headers().get(LOCATION).is_none());
+
+        let body = response.into_body().collect().await.unwrap().to_bytes();
+        let body: Value = serde_json::from_slice(&body).unwrap();
+        assert!(body.get("url").is_some())
+    }
+
+    #[tokio::test]
+    async fn post_big_file() {
+        let opt = make_test_opt();
+        let app = router("/tmp".into(), opt);
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/")
+                    .method("POST")
+                    .header(
+                        axum::http::header::CONTENT_TYPE,
+                        "multipart/form-data; boundary=boundary",
+                    )
+                    .body(
+                        format!(
+                            r#"--boundary
+Content-Disposition: form-data; name="file"; filename="original.txt"
+Content-Type: text/plain
+
+{}
+
+--boundary--
+"#,
+                            "1234567890abcdef\n".repeat(64 * 1024 * 20)
+                        )
+                        .replace('\n', "\r\n"),
+                    )
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::SEE_OTHER);
+
+        let body = response.into_body().collect().await.unwrap().to_bytes();
+        let body: Value = serde_json::from_slice(&body).unwrap();
+        assert!(body.get("url").is_some())
+    }
 }

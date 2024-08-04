@@ -1,5 +1,10 @@
 # Changelog
 
+### 2.1.0
+
+* Fix bug where uploads larger than 2 MiB were denied.
+* Add possibility to limit max upload size (default 2 GiB).
+
 ### 2.0.0
 
 **Breaking changes**

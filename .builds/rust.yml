@@ -24,6 +24,9 @@ tasks:
     export CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse
     cargo fmt -- --check
     cargo clippy -- -D warnings
+- test: |
+    cd i
+    cargo test
 - build: |
     cd i
     docker buildx build --load --tag "${container_image}:edge" .
