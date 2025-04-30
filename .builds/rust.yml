@@ -13,7 +13,6 @@ secrets:
 - 033cc889-8f30-45bf-bedb-5307c2f3b54d # ~/.docker-github-pat
 environment:
   container_image: ghcr.io/zozs/i
-  semver_container_tags_version: v1.0.0
 tasks:
 - lint: |
     # prepare for build in next step (docker may be slow to start)
@@ -49,9 +48,8 @@ tasks:
     # only do the following if this is a pushed tag
     git describe --exact-match HEAD || complete-build
     # derive additional tags here (several due to semver), and then push them.
-    curl -L "https://git.sr.ht/~zozs/semver-container-tags/refs/download/${semver_container_tags_version}/semver-container-tags-amd64" -o semver-container-tags
-    chmod +x semver-container-tags
-    for tag in $(./semver-container-tags "${container_image}" "$(git describe --exact-match HEAD)"); do
+    cargo install --git https://git.sr.ht/~zozs/semver-container-tags
+    for tag in $(/home/build/.cargo/bin/semver-container-tags "${container_image}" "$(git describe --exact-match HEAD)"); do
       docker tag "${container_image}:edge" "$tag"
       docker push "$tag"
     done
