@@ -1,14 +1,14 @@
 use axum::{
-    extract::State,
-    http::{header::LOCATION, StatusCode},
-    response::IntoResponse,
     Form,
+    extract::State,
+    http::{StatusCode, header::LOCATION},
+    response::IntoResponse,
 };
 use serde::Deserialize;
 
 use crate::WebError;
 
-use super::{helpers::filename_path, helpers::thumbnail_filename_path, Opt};
+use super::{Opt, helpers::filename_path, helpers::thumbnail_filename_path};
 
 #[derive(Deserialize)]
 pub struct DeleteRequest {

@@ -1,12 +1,11 @@
-use askama_axum::IntoResponse;
+use axum::Json;
 use axum::extract::multipart::Field;
 use axum::extract::{Multipart, State};
 use axum::http::header::LOCATION;
 use axum::http::{HeaderMap, StatusCode};
-use axum::Json;
+use axum::response::IntoResponse;
 use futures::StreamExt;
-use rand::distributions::Alphanumeric;
-use rand::{thread_rng, Rng};
+use rand::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::ffi::OsStr;
 use std::io::Write;
@@ -15,7 +14,7 @@ use std::path::{Path, PathBuf};
 use crate::WebError;
 
 use super::helpers::{filename_path, thumbnail_filename_path};
-use super::{thumbnail::generate_thumbnail, Opt};
+use super::{Opt, thumbnail::generate_thumbnail};
 
 struct FileUpload {
     original_filename: String,
@@ -43,9 +42,9 @@ struct UploadResponse {
 }
 
 fn generate_random_filename(extension: Option<&str>) -> String {
-    let mut rng = thread_rng();
+    let mut rng = rand::rng();
     let random_string: String = std::iter::repeat(())
-        .map(|()| rng.sample(Alphanumeric))
+        .map(|()| rng.sample(rand::distr::Alphanumeric))
         .map(char::from)
         .take(8)
         .collect();

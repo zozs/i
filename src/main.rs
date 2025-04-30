@@ -1,19 +1,20 @@
-use askama_axum::Template;
+use askama::Template;
+use askama_web::WebTemplate;
 use axum::{
+    Router,
     extract::{DefaultBodyLimit, Request, State},
     handler::HandlerWithoutStateExt,
     http::{
-        header::{CONTENT_TYPE, WWW_AUTHENTICATE},
         StatusCode,
+        header::{CONTENT_TYPE, WWW_AUTHENTICATE},
     },
     middleware,
     response::{IntoResponse, Response},
     routing::{get, post},
-    Router,
 };
 use axum_extra::{
-    headers::{authorization::Basic, Authorization},
     TypedHeader,
+    headers::{Authorization, authorization::Basic},
 };
 use clap::Parser;
 use image::ImageError;
@@ -112,7 +113,7 @@ impl axum::response::IntoResponse for WebError {
     }
 }
 
-#[derive(Template)]
+#[derive(Template, WebTemplate)]
 #[template(path = "notfound.html")]
 struct NotFoundTemplate {}
 
@@ -223,7 +224,7 @@ mod tests {
     use super::*;
     use axum::{
         body::Body,
-        http::{header::LOCATION, Request, StatusCode},
+        http::{Request, StatusCode, header::LOCATION},
     };
     use http_body_util::BodyExt; // for `collect`
     use serde_json::Value;

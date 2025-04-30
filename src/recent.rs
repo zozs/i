@@ -1,8 +1,9 @@
-use askama_axum::Template;
+use askama::Template;
+use askama_web::WebTemplate;
 use axum::extract::State;
 use axum::response::IntoResponse;
-use chrono::offset::Local;
 use chrono::DateTime;
+use chrono::offset::Local;
 use std::io;
 use std::path::Path;
 use std::time::SystemTime;
@@ -10,7 +11,7 @@ use std::{fs, fs::DirEntry};
 
 use crate::WebError;
 
-use super::{get_base_dir, Opt};
+use super::{Opt, get_base_dir};
 
 struct DirEntryModTimePair {
     dir_entry: DirEntry,
@@ -23,7 +24,7 @@ struct RecentEntry {
     url: String,
 }
 
-#[derive(Template)]
+#[derive(Template, WebTemplate)]
 #[template(path = "recent.html")]
 struct RecentTemplate {
     recents: Vec<RecentEntry>,
@@ -33,7 +34,7 @@ fn build_recent_html_page(
     files: &[&DirEntryModTimePair],
     prefix_length: usize,
     opt: &Opt,
-) -> Result<impl IntoResponse, WebError> {
+) -> Result<impl IntoResponse + use<>, WebError> {
     // Stringify DirEntryModTimePair
     // TODO: can we make some magic converter Trait to do this outside this function?
     let mut recents: Vec<RecentEntry> = Vec::new();

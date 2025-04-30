@@ -30,7 +30,7 @@ where
  */
 pub fn get_thumbnail_url<P: AsRef<Path>>(path: P, opt: &Opt) -> Result<String, WebError> {
     let thumbnail_path = super::get_thumbnail_dir(opt)?.join(&path);
-    return if thumbnail_path.exists() {
+    if thumbnail_path.exists() {
         let url = std::path::Path::new(crate::THUMBNAIL_SUBDIR);
         Ok(url
             .join(&path)
@@ -39,5 +39,5 @@ pub fn get_thumbnail_url<P: AsRef<Path>>(path: P, opt: &Opt) -> Result<String, W
             .map_err(|_| std::io::Error::new(std::io::ErrorKind::Other, "invalid path"))?)
     } else {
         Ok("/recent/placeholder.png".to_string())
-    };
+    }
 }

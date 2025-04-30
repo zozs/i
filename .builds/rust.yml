@@ -10,7 +10,7 @@ sources:
 secrets:
 - 16541680-f9eb-42c9-b14e-34cbef217bac # deploy key on github
 - 3b94b715-7fe4-487d-bba8-7a4b5a9e3155 # .ssh/known_hosts with github.com (ed25519)
-- a23ed8d1-3c52-49f0-8ace-bc7bfb0628ef # ~/.docker-github-pat
+- 033cc889-8f30-45bf-bedb-5307c2f3b54d # ~/.docker-github-pat
 environment:
   container_image: ghcr.io/zozs/i
   semver_container_tags_version: v1.0.0
