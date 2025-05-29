@@ -61,6 +61,14 @@
                 <time class="is-size-7" datetime="{{ recent.timestamp }}">{{ recent.timestamp }}</time>
               </div>
             </div>
+            <form method="post" action="delete">
+              <footer class="card-footer">
+                <p className="card-footer-item is-paddingless"></p>
+                  <input type="hidden" name="filename" value="{{ recent.url }}">
+                  <input type="submit" value="Delete" class="button is-fullwidth is-danger is-light">
+                </p>
+              </footer>
+            </form>
           </div>
         </div>
         {% endfor %}

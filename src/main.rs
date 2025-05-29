@@ -56,7 +56,7 @@ pub struct Opt {
     auth_pass: Option<String>,
 
     /// Number of entries to show in the list of recent uploads
-    #[arg(short = 'r', long, env, default_value_t = 15)]
+    #[arg(short = 'r', long, env, default_value_t = 18)]
     recents: usize,
 
     /// Thumbnail size
