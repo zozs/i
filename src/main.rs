@@ -183,7 +183,7 @@ fn router(base_dir: PathBuf, opt: Opt) -> Router {
         .route("/", get(index))
         .route("/", post(upload::handle_upload))
         .route("/delete", post(delete::handle_delete))
-        .route("/recent", get(recent::recent))
+        .route("/recent", get(recent::recent_pagination))
         .route_layer(middleware::from_fn_with_state(opt.clone(), auth_validator)) // every route above covered by auth
         .route("/recent/bulma.min.css", get(bulma))
         .route("/recent/placeholder.png", get(placeholder_thumbnail))

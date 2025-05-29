@@ -14,6 +14,7 @@
     <div class="container">
       <h1 class="title">Recent uploads</h1>
 
+      <!--
       <h3 class="title is-5">List</h3>
       <table class="table is-striped is-narrow">
         <thead>
@@ -38,8 +39,10 @@
           {% endfor %}
         </tbody>
       </table>
+      -->
 
-      <h3 class="title is-5">Thumbnails</h3>
+      <!-- Thumbnails -->
+      <!--<h3 class="title is-5">Thumbnails</h3>-->
       <div class="columns is-multiline is-mobile">
         {% for recent in recents %}
         <div class="column is-narrow">
@@ -62,6 +65,34 @@
         </div>
         {% endfor %}
       </div>
+
+      <!-- Pagination -->
+      <nav class="pagination" role="navigation" aria-label="pagination">
+        {% if let Some(page) = pagination.prev %}
+        <a href="recent?page={{page - 1}}" class="pagination-previous">Previous</a>
+        {% endif %}
+        {% if let Some(page) = pagination.next %}
+        <a href="recent?page={{page - 1}}" class="pagination-next">Next page</a>
+        {% endif %}
+        <ul class="pagination-list">
+        {% for page in pagination.pages %}
+          {% match page %}
+          {% when PaginationNode::Ellipsis -%}
+          <li>
+            <span class="pagination-ellipsis">&hellip;</span>
+          </li>
+          {% when PaginationNode::Current(nbr) -%}
+          <li>
+            <a class="pagination-link is-current" aria-label="Page {{ nbr }}" aria-current="page">{{ nbr }}</a>
+          </li>
+          {% when PaginationNode::Page(nbr) -%}
+          <li>
+            <a href="recent?page={{nbr - 1}}" class="pagination-link" aria-label="Goto page {{ nbr }}">{{ nbr }}</a>
+          </li>
+          {% endmatch %}
+        {% endfor %}
+        </ul>
+      </nav>
     </div>
   </section>
 </body>

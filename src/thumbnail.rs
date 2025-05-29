@@ -36,7 +36,7 @@ pub fn get_thumbnail_url<P: AsRef<Path>>(path: P, opt: &Opt) -> Result<String, W
             .join(&path)
             .into_os_string()
             .into_string()
-            .map_err(|_| std::io::Error::new(std::io::ErrorKind::Other, "invalid path"))?)
+            .map_err(|_| std::io::Error::other("invalid path"))?)
     } else {
         Ok("/recent/placeholder.png".to_string())
     }

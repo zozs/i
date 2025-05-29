@@ -1,5 +1,18 @@
 # Changelog
 
+### 2.2.0
+
+* Add pagination on recent page
+* Update dependencies
+
+### 2.1.2
+
+* Fix build errors
+
+### 2.1.1
+
+* Update dependencies
+
 ### 2.1.0
 
 * Fix bug where uploads larger than 2 MiB were denied.
