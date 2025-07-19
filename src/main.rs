@@ -209,8 +209,8 @@ async fn main() -> Result<(), WebError> {
 
     let base_dir = get_base_dir(&opt)?;
 
-    log::info!("listening on {}", bind_string);
-    log::info!("serving and storing files in: {:?}", base_dir);
+    log::info!("listening on {bind_string}");
+    log::info!("serving and storing files in: {base_dir:?}");
 
     let app = router(base_dir, opt);
 

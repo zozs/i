@@ -1,5 +1,10 @@
 # Changelog
 
+### 2.2.1
+
+* Update dependencies
+* Style fixes for Rust 1.88
+
 ### 2.2.0
 
 * Add pagination on recent page

@@ -49,7 +49,7 @@ fn generate_random_filename(extension: Option<&str>) -> String {
         .take(8)
         .collect();
     match extension {
-        Some(ext) => format!("{}.{}", random_string, ext),
+        Some(ext) => format!("{random_string}.{ext}"),
         None => random_string,
     }
 }
@@ -135,7 +135,7 @@ pub async fn handle_upload(
         tokio::task::spawn(async move {
             // TODO: replace with some mpsc channel for thumbnails
             let _ = generate_thumbnail(&final_path, &final_thumb_path, &opt)
-                .map_err(|e| println!("Error when generating thumbnail: {}", e));
+                .map_err(|e| println!("Error when generating thumbnail: {e}"));
         });
 
         let (status, headers) = if options.redirect {
