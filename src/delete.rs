@@ -4,6 +4,7 @@ use axum::{
     http::{StatusCode, header::LOCATION},
     response::IntoResponse,
 };
+use axum_extra::{TypedHeader, headers::Referer};
 use serde::Deserialize;
 
 use crate::WebError;
@@ -17,6 +18,7 @@ pub struct DeleteRequest {
 
 pub async fn handle_delete(
     State(opt): State<Opt>,
+    referer: Option<TypedHeader<Referer>>,
     Form(form): Form<DeleteRequest>,
 ) -> Result<impl IntoResponse, WebError> {
     if !sanitize_filename::is_sanitized(&form.filename) {
@@ -27,5 +29,9 @@ pub async fn handle_delete(
     std::fs::remove_file(filename_path(&form.filename, &opt)?)?;
     std::fs::remove_file(thumbnail_filename_path(&form.filename, &opt)?).ok();
 
-    Ok((StatusCode::SEE_OTHER, [(LOCATION, "recent")], "deleted"))
+    let redirect = referer
+        .map(|t| t.0.to_string())
+        .unwrap_or("recent".to_string());
+
+    Ok((StatusCode::SEE_OTHER, [(LOCATION, redirect)], "deleted"))
 }

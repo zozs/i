@@ -9,7 +9,7 @@ COPY . .
 RUN CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse cargo install --target=x86_64-unknown-linux-musl --locked --path .
 
 # running stage
-FROM gcr.io/distroless/static-debian12
+FROM gcr.io/distroless/static-debian13
 ARG APP=/usr/src/app
 
 COPY --from=builder --chown=nonroot:nonroot /usr/local/cargo/bin/i ${APP}/i

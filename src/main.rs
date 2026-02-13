@@ -184,6 +184,20 @@ fn router(base_dir: PathBuf, opt: Opt) -> Router {
         .route("/", post(upload::handle_upload))
         .route("/delete", post(delete::handle_delete))
         .route("/recent", get(recent::recent_pagination))
+        .route("/recent/size", get(recent::recent_pagination_size))
+        .route(
+            "/recent/{year}/{month}",
+            get(recent::recent_pagination_year_month),
+        )
+        .route(
+            "/recent/{year}/{month}/size",
+            get(recent::recent_pagination_year_month_size),
+        )
+        .route("/recent/{year}", get(recent::recent_pagination_year))
+        .route(
+            "/recent/{year}/size",
+            get(recent::recent_pagination_year_size),
+        )
         .route_layer(middleware::from_fn_with_state(opt.clone(), auth_validator)) // every route above covered by auth
         .route("/recent/bulma.min.css", get(bulma))
         .route("/recent/placeholder.png", get(placeholder_thumbnail))
@@ -296,6 +310,65 @@ hellu this is a cute little file UwU
         let body = response.into_body().collect().await.unwrap().to_bytes();
         let body: Value = serde_json::from_slice(&body).unwrap();
         assert!(body.get("url").is_some())
+    }
+
+    #[tokio::test]
+    async fn delete_small_file_without_referer() {
+        let opt = make_test_opt();
+        let app = router("/tmp".into(), opt);
+        std::fs::File::create("/tmp/i_tests_to_be_deleted.txt").unwrap();
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/delete")
+                    .method("POST")
+                    .header(
+                        axum::http::header::CONTENT_TYPE,
+                        "application/x-www-form-urlencoded",
+                    )
+                    .body(r#"filename=i_tests_to_be_deleted.txt"#.to_string())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::SEE_OTHER);
+        assert!(response.headers().get(LOCATION).is_some());
+        assert_eq!(response.headers().get(LOCATION).unwrap(), "recent");
+    }
+
+    #[tokio::test]
+    async fn delete_small_file_with_referer() {
+        let opt = make_test_opt();
+        let app = router("/tmp".into(), opt);
+        std::fs::File::create("/tmp/i_tests_to_be_deleted2.txt").unwrap();
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/delete")
+                    .method("POST")
+                    .header(
+                        axum::http::header::REFERER,
+                        "http://localhost:8088/recent/2026?page=1",
+                    )
+                    .header(
+                        axum::http::header::CONTENT_TYPE,
+                        "application/x-www-form-urlencoded",
+                    )
+                    .body(r#"filename=i_tests_to_be_deleted2.txt"#.to_string())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::SEE_OTHER);
+        assert!(response.headers().get(LOCATION).is_some());
+        assert_eq!(
+            response.headers().get(LOCATION).unwrap(),
+            "http://localhost:8088/recent/2026?page=1"
+        );
     }
 
     #[tokio::test]

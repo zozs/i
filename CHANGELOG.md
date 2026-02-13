@@ -1,5 +1,12 @@
 # Changelog
 
+### 2.3.0
+
+* Add `/recent/<year>` endpoint to show only items from a year.
+* Add `/recent/<year>/<month>` endpoint to show only items from a year-month.
+* Add `/recent/**/size` endpoints to sort by size, works for all recent endpoints.
+* After deleting a file, you're now redirected back to the same page you were before.
+
 ### 2.2.3
 
 * Update dependencies

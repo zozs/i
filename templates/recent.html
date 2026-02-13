@@ -5,7 +5,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="stylesheet" href="recent/bulma.min.css">
+  <link rel="stylesheet" href="/recent/bulma.min.css">
   <title>i: recent uploads</title>
 </head>
 
@@ -13,33 +13,6 @@
   <section class="section">
     <div class="container">
       <h1 class="title">Recent uploads</h1>
-
-      <!--
-      <h3 class="title is-5">List</h3>
-      <table class="table is-striped is-narrow">
-        <thead>
-          <tr>
-            <th>Timestamp</th>
-            <th>Filename</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for recent in recents %}
-          <tr>
-            <td>{{ recent.timestamp }}</td>
-            <td><a href="{{ recent.url }}">{{ recent.url }}</a></td>
-            <td>
-              <form method="post" action="delete">
-                <input type="hidden" name="filename" value="{{ recent.url }}">
-                <input type="submit" value="Delete" class="button is-small is-danger is-light is-rounded">
-              </form>
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-      -->
 
       <!-- Thumbnails -->
       <!--<h3 class="title is-5">Thumbnails</h3>-->
@@ -49,24 +22,23 @@
           <div class="card">
             <div class="card-image has-text-centered">
               <figure class="image is-128x128 is-inline-block">
-                <a href="{{ recent.url }}">
+                <a href="/{{ recent.url }}">
                   <img src="{{ recent.thumbnail_url }}" alt="image">
                 </a>
               </figure>
             </div>
             <div class="card-content">
               <div class="content">
-                <a href="{{ recent.url }}">{{ recent.url }}</a>
+                <a href="/{{ recent.url }}">{{ recent.url }}</a>
                 <br>
                 <time class="is-size-7" datetime="{{ recent.timestamp }}">{{ recent.timestamp }}</time>
               </div>
             </div>
-            <form method="post" action="delete">
+            <form method="post" action="/delete">
               <footer class="card-footer">
                 <p className="card-footer-item is-paddingless"></p>
-                  <input type="hidden" name="filename" value="{{ recent.url }}">
-                  <input type="submit" value="Delete" class="button is-fullwidth is-danger is-light">
-                </p>
+                <input type="hidden" name="filename" value="{{ recent.url }}">
+                <input type="submit" value="Delete" class="button is-fullwidth is-danger is-light">
               </footer>
             </form>
           </div>

@@ -6,6 +6,11 @@ secrets:
 - ba9ec4f7-cd0b-4746-b03d-8203c6a4bf99 # debricked token ~/.debricked-token
 tasks:
 - debricked: |
+    if [ "$BUILD_REASON" = "patchset" ]; then
+      echo "Skipping scan for emailed patch"
+      complete-build
+    fi
+
     set +x
     export DEBRICKED_TOKEN="$(cat ~/.debricked-token)"
     set -x
