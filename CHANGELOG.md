@@ -1,5 +1,9 @@
 # Changelog
 
+### 2.3.1
+
+* Fix various path and pagination bugs with recent endpoints in 2.3.0.
+
 ### 2.3.0
 
 * Add `/recent/<year>` endpoint to show only items from a year.

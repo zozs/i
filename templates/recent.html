@@ -23,7 +23,7 @@
             <div class="card-image has-text-centered">
               <figure class="image is-128x128 is-inline-block">
                 <a href="/{{ recent.url }}">
-                  <img src="{{ recent.thumbnail_url }}" alt="image">
+                  <img src="/{{ recent.thumbnail_url }}" alt="image">
                 </a>
               </figure>
             </div>
@@ -49,10 +49,10 @@
       <!-- Pagination -->
       <nav class="pagination" role="navigation" aria-label="pagination">
         {% if let Some(page) = pagination.prev %}
-        <a href="recent?page={{page - 1}}" class="pagination-previous">Previous</a>
+        <a href="?page={{page - 1}}" class="pagination-previous">Previous</a>
         {% endif %}
         {% if let Some(page) = pagination.next %}
-        <a href="recent?page={{page - 1}}" class="pagination-next">Next page</a>
+        <a href="?page={{page - 1}}" class="pagination-next">Next page</a>
         {% endif %}
         <ul class="pagination-list">
         {% for page in pagination.pages %}
@@ -67,7 +67,7 @@
           </li>
           {% when PaginationNode::Page(nbr) -%}
           <li>
-            <a href="recent?page={{nbr - 1}}" class="pagination-link" aria-label="Goto page {{ nbr }}">{{ nbr }}</a>
+            <a href="?page={{nbr - 1}}" class="pagination-link" aria-label="Goto page {{ nbr }}">{{ nbr }}</a>
           </li>
           {% endmatch %}
         {% endfor %}

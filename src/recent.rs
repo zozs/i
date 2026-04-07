@@ -131,15 +131,14 @@ where
     let base_dir = get_base_dir(opt)?;
     visit_dirs(&base_dir, &mut files)?;
 
-    // note the order of the partial_cmp
-    //files.sort_by(|a, b| b.mod_time.partial_cmp(&a.mod_time).unwrap());
     files.sort_by(sorter);
 
     let recent_files = opt.recents;
-    let pagination = build_pagination(files.len(), recent_files, page);
-    let latest_n_files: Vec<&DirEntryModTimePair> = files
-        .iter()
-        .filter(|x| date_filter(&x.mod_time))
+    let filtered_files: Vec<&DirEntryModTimePair> =
+        files.iter().filter(|x| date_filter(&x.mod_time)).collect();
+    let pagination = build_pagination(filtered_files.len(), recent_files, page);
+    let latest_n_files: Vec<&DirEntryModTimePair> = filtered_files
+        .into_iter()
         .skip(page * recent_files)
         .take(recent_files)
         .collect();
