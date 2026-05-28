@@ -22,6 +22,7 @@ use std::path::{Path, PathBuf};
 use tokio::task::JoinError;
 use tower_http::{
     services::ServeDir,
+    set_header::SetResponseHeaderLayer,
     trace::{DefaultMakeSpan, TraceLayer},
 };
 use tracing_subscriber::EnvFilter;
@@ -176,6 +177,13 @@ async fn auth_validator(
 fn router(base_dir: PathBuf, opt: Opt) -> Router {
     let max_upload = opt.max_upload_size;
     let serve_dir = ServeDir::new(&base_dir).not_found_service(handle_404.into_service());
+    let serve_dir_with_csp = tower::ServiceBuilder::new()
+        .layer(SetResponseHeaderLayer::overriding(
+            axum::http::header::CONTENT_SECURITY_POLICY,
+            axum::http::HeaderValue::from_static("default-src 'none';"),
+        ))
+        .service(serve_dir);
+
     let tracing_layer =
         TraceLayer::new_for_http().make_span_with(DefaultMakeSpan::new().include_headers(true));
 
@@ -201,7 +209,7 @@ fn router(base_dir: PathBuf, opt: Opt) -> Router {
         .route_layer(middleware::from_fn_with_state(opt.clone(), auth_validator)) // every route above covered by auth
         .route("/recent/bulma.min.css", get(bulma))
         .route("/recent/placeholder.png", get(placeholder_thumbnail))
-        .fallback_service(serve_dir)
+        .fallback_service(serve_dir_with_csp)
         .with_state(opt)
         .layer(tracing_layer)
         .layer(DefaultBodyLimit::max(max_upload))
@@ -495,5 +503,47 @@ Content-Type: text/plain
         let body = response.into_body().collect().await.unwrap().to_bytes();
         let body: Value = serde_json::from_slice(&body).unwrap();
         assert!(body.get("url").is_some())
+    }
+
+    #[tokio::test]
+    async fn csp_header() {
+        let opt = make_test_opt();
+        let app = router("/tmp".into(), opt);
+        std::fs::write("/tmp/test_csp.html", "<html><body>hello</body></html>").unwrap();
+
+        // 1. Verify CSP header IS present on served files (fallback service)
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/test_csp.html")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(
+            response
+                .headers()
+                .get(axum::http::header::CONTENT_SECURITY_POLICY)
+                .unwrap(),
+            "default-src 'none';"
+        );
+
+        // 2. Verify CSP header IS NOT present on main UI routes
+        let response = app
+            .oneshot(Request::builder().uri("/").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        assert!(
+            response
+                .headers()
+                .get(axum::http::header::CONTENT_SECURITY_POLICY)
+                .is_none()
+        );
     }
 }

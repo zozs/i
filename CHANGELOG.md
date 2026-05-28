@@ -1,5 +1,9 @@
 # Changelog
 
+### 2.4.0
+
+* Security hardening
+
 ### 2.3.1
 
 * Fix various path and pagination bugs with recent endpoints in 2.3.0.
