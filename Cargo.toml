@@ -7,8 +7,8 @@ edition = "2024"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-askama = { version = "0.15", features = [ ] }
-askama_web = { version = "0.15", features = ["axum-0.8"] }
+askama = { version = "0.16", features = [ ] }
+askama_web = { version = "0.16", features = ["axum-0.8"] }
 axum = { version = "0.8.7", features = ["multipart"] }
 axum-extra = { version = "0.12.2", features = ["typed-header"] }
 chrono = "0.4.42"
