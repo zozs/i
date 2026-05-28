@@ -17,6 +17,7 @@ use axum_extra::{
     headers::{Authorization, authorization::Basic},
 };
 use clap::Parser;
+use constant_time_eq::constant_time_eq;
 use image::ImageError;
 use std::path::{Path, PathBuf};
 use tokio::task::JoinError;
@@ -162,9 +163,18 @@ async fn auth_validator(
     if let (Some(euser), Some(epass)) = (opt.auth_user.as_ref(), opt.auth_pass.as_ref()) {
         // Since both user and pass are given, we now require authentication. Check that they match.
         if let Some(TypedHeader(Authorization(creds))) = creds {
-            match (creds.username(), creds.password()) {
-                (auser, apass) if auser == euser && apass == epass => Ok(next.run(request).await),
-                _ => Err(WebError::AuthenticationFailed),
+            let auser = creds.username();
+            let apass = creds.password();
+
+            // We use constant-time comparison to prevent timing attacks.
+            // We must check both username AND password to prevent leaking username validity.
+            let user_match = constant_time_eq(auser.as_bytes(), euser.as_bytes());
+            let pass_match = constant_time_eq(apass.as_bytes(), epass.as_bytes());
+
+            if user_match && pass_match {
+                Ok(next.run(request).await)
+            } else {
+                Err(WebError::AuthenticationFailed)
             }
         } else {
             Err(WebError::AuthenticationFailed)
@@ -503,6 +513,49 @@ Content-Type: text/plain
         let body = response.into_body().collect().await.unwrap().to_bytes();
         let body: Value = serde_json::from_slice(&body).unwrap();
         assert!(body.get("url").is_some())
+    }
+
+    #[tokio::test]
+    async fn auth_required_and_works() {
+        let mut opt = make_test_opt();
+        opt.auth_user = Some("admin".into());
+        opt.auth_pass = Some("secret".into());
+        let app = router("/tmp".into(), opt);
+
+        // 1. Fail without credentials
+        let response = app
+            .clone()
+            .oneshot(Request::builder().uri("/").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+
+        // 2. Fail with wrong credentials
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/")
+                    .header("Authorization", "Basic YWRtaW46d3Jvbmc=") // admin:wrong
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+
+        // 3. Succeed with correct credentials
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/")
+                    .header("Authorization", "Basic YWRtaW46c2VjcmV0") // admin:secret
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
     }
 
     #[tokio::test]
